@@ -1,0 +1,9 @@
+*.dvi
+*.tex
+*.aux
+*.ps
+*.png
+*.log
+*.hi
+*.o
+cuneiform-out.txt

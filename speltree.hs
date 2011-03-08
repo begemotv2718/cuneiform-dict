@@ -7,58 +7,51 @@ import Data.Word
 import Maybe
 import Numeric
 import Control.Monad
+import Data.Tree
 
 type Letter = Int
-data DictNode = DictNode { letter:: Letter, account::Float, terminal::Bool, lemma::[Int],  subnodes::[DictNode] } deriving (Eq,Show)
+data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Show,Eq)
+type DictNode = Tree DictData
 {--Properties: Nodes are arranged alphabetically with last letters first  --}
-type DictTree = [DictNode]
+type DictTree = Forest DictData 
 
 isEmpty::[Letter] -> Bool
 isEmpty = null
 
-updateTree:: [Letter] -> Int->Float -> DictTree -> DictTree
-updateTree [] lemmanum freq tree = tree
-updateTree (lt:tail) lemmanum freq [] = [
-                         DictNode { 
-                               letter=lt,
-                               account = freq,
-                               terminal = isEmpty tail,
-                               lemma = if isEmpty tail then [lemmanum] else [], 
-                               subnodes = updateTree tail lemmanum freq []} ]
-updateTree (lt:tail) lemmanum freq (node:nodes) =
--- Three cases lt == letter node, then update node
-   if lt == letter node
-       then (updateNode node lemmanum freq tail):nodes
-       else if lt < letter node
-            then node:(updateTree (lt:tail) lemmanum freq nodes)
-            else (newNode (lt:tail) lemmanum freq):node:nodes
-
-newNode:: [Letter]->Int->Float->DictNode
-newNode (lt:tail) lemmanum freq =  DictNode{
-                     letter = lt
-                    ,account = freq
-                    ,terminal = isEmpty tail
-                    ,lemma = if isEmpty tail then [lemmanum] else []
-                    ,subnodes = updateTree tail lemmanum freq []
-                                  }
-
-updateNode:: DictNode->Int->Float->[Letter]->DictNode
-updateNode nd lemmanum freq wordrest  = DictNode{ letter = letter nd 
-                                        ,account = freq + account nd
-                                        ,terminal = isEmpty wordrest || terminal nd
-                                        ,lemma = if isEmpty wordrest then lemmanum:(lemma nd) else (lemma nd)
-                                        ,subnodes = updateTree wordrest lemmanum freq $ subnodes nd
-                                       }
-
-
 data DictWord = DictWord { st::[Letter], wlemma::Int, freq::Float}
 
-updateTreeWord::DictTree->DictWord->DictTree
-updateTreeWord t w = updateTree (st w) (wlemma w) (freq w) t  
+fstletter::DictWord->Letter
+fstletter = head. st 
+
+fstlettereq::DictWord->DictWord->Bool
+fstlettereq a b = fstletter a == fstletter b
+
+removefstletter::[DictWord] -> [DictWord]
+removefstletter = filter (not . isEmpty . st) . map removefstletterword
+
+removefstletterword::DictWord->DictWord
+removefstletterword a =DictWord { st = tail $ st a, wlemma=wlemma a, freq = freq a}
+
+sumdata::[DictWord]->Float
+sumdata = sum . map freq 
+
+issinglelet::DictWord->Bool
+issinglelet  = isEmpty . tail. st 
+
+findterminal::[DictWord]->Bool
+findterminal  = isJust. find issinglelet  
+
+getlemmas::[DictWord]->[Int]
+getlemmas = map wlemma . filter issinglelet
+
+unfolder::[DictWord]->(DictData,[[DictWord]]) 
+unfolder b = (DictData { letter = fstletter $ head b, account = sumdata b, terminal = findterminal b, lemma = getlemmas b },
+              groupBy fstlettereq $ removefstletter b) 
+
 
 
 makeTree:: [DictWord]->DictTree
-makeTree list = foldl updateTreeWord [] list
+makeTree list = unfoldForest  unfolder (groupBy fstlettereq list)
 
 -- Input/output
 

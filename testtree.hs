@@ -19,9 +19,21 @@ mapAccumTree f (Node a sf) = (b', Node c' cs)
 accum2:: Int->[String]->(String,String)
 accum2 a sts = (show a++" "++ concat sts,show a ++ " "++concat sts)
 
+fmapForest::([a]->[b])->Forest a->Forest b
+fmapForest f [] = []
+fmapForest f forest = zipWith Node (f rootlabels) (map (fmapForest f) subforests)
+           where rootlabels = map rootLabel forest
+                 subforests = map subForest forest
+
+marklast::[String]->[String]
+marklast [] = []
+marklast a = init a ++ [ last a ++ "lst"]
+
 main = do
   putStrLn $ drawTree $ fmap show $ t 6 
   putStrLn $ drawTree $ fmap show $ snd . mapAccumL accum 0 $ t 6 
   putStrLn $ drawTree $ fmap show $ snd . mapAccumR accum 0 $ t 6 
   putStrLn $ foldr folder "" $ t 6
   putStrLn $ drawTree. snd $ mapAccumTree accum2 $ t 6
+  putStrLn $ drawForest $ fmapForest marklast $ map (fmap show) $ map t [2..6]
+  --putStrLn $ drawForest $ map (fmap show) $ map t [2..6]

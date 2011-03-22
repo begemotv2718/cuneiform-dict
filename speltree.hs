@@ -1,4 +1,5 @@
-import List
+--import List
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as B
@@ -8,10 +9,15 @@ import Maybe
 import Numeric
 import Control.Monad
 import Data.Tree
+import qualified Data.Foldable as DF 
 import Data.Bits
 
+mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
+rusletter lt = Map.lookup lt mapfromrus
 type Letter = Int
-data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Show,Eq)
+data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
+instance Show DictData where
+   show (DictData lt acc term lemma) = show ( rusletter lt ) ++ show lemma 
 type DictNode = Tree DictData
 {--Properties: Nodes are arranged alphabetically with last letters first  --}
 type DictTree = Forest DictData 
@@ -20,6 +26,8 @@ isEmpty::[Letter] -> Bool
 isEmpty = null
 
 data DictWord = DictWord { st::[Letter], wlemma::Int, freq::Float, freeTerm::Bool}
+instance Show DictWord where
+ show (DictWord st wl fr freeterm) = show (map rusletter st) ++ "lemma: "++show wl++" frequency: "++show fr++" terminal: "++show freeterm
 
 fstletter::DictWord->Letter
 fstletter = head. st 
@@ -154,7 +162,56 @@ vertV (DictData lt _ _ _) ln = (B.singleton.setcont.setnoterm ln.setkey) lt
       where 
            setkey lt = shiftL (fromIntegral lt .&. 63::Word8) 2 
            setnoterm ln = setBit2If (ln > 0) 1 
-     
+
+
+unfoldForest2List:: Int->Forest IntermediateVertex -> [Maybe (Tree IntermediateVertex)]
+unfoldForest2List alphsize forest = [find (((==) i).letter.dictdata.rootLabel) forest | i<-[0 .. alphsize-1]] 
+
+
+extractPrepend:: Int->Maybe (Tree IntermediateVertex)->[Maybe (Tree IntermediateVertex)]
+extractPrepend alphsize (Just vert) = setIfTerminal vert:(unfoldForest2List alphsize $ subForest vert) 
+                                  where 
+                                   setIfTerminal vert = if isNotTerminal vert then Nothing else Just $ clearSubnodes vert
+                                   isNotTerminal vert = (isEmpty.lemma.dictdata.rootLabel) vert && (not.terminal.dictdata.rootLabel) vert 
+                                   clearSubnodes a = Node { rootLabel = rootLabel a, subForest = []}
+extractPrepend alphsize Nothing = replicate (alphsize+1) Nothing
+    
+vertplen::Int
+vertplen = 3 -- Length of the p-type vertex                                     
+
+unfoldLevel2::Int->Forest IntermediateVertex->[Maybe (Tree IntermediateVertex)]
+unfoldLevel2  alphsize = concatMap (extractPrepend alphsize) . unfoldForest2List alphsize
+
+serializeMaybeTree::Int->Maybe (Tree IntermediateVertex)->(Int, B.ByteString, B.ByteString)
+serializeMaybeTree offset Nothing = (offset-vertplen, B.replicate (fromIntegral vertplen) (0::Word8),B.empty)
+serializeMaybeTree offset (Just tr) = (offset + (len  rl-1)+subtreelen rl  -vertplen,
+                                     vertexP offset rl, 
+                                     B.tail $ DF.foldMap serializeIV tr) 
+                  where rl = rootLabel tr
+                        vertexP offset (IVertex a lst ln sbtrln) = 
+                                           (B.singleton $ setexists $ setcont $ setnoterm sbtrln $ vertpShift0 offset) 
+                                          `B.append` (B.singleton $ vertpShift1 offset) 
+                                          `B.append` (B.singleton $ vertpShift2 offset)
+                        setcont  = setBit2 0
+                        setnoterm ln = setBit2If (ln > 0) 1 
+                        setexists = setBit2 3
+                        vertpShift0 x = shiftL (fromIntegral (shiftR x 16).&. (31::Word8)) 3 
+                        vertpShift1 x = fromIntegral (shiftR x 8) .&. 255::Word8  
+                        vertpShift2 x = fromIntegral x .&. 255::Word8
+
+foldSerializeMaybeTree::Int->(Int,B.ByteString,B.ByteString)->Maybe (Tree IntermediateVertex)->(Int,B.ByteString,B.ByteString)
+foldSerializeMaybeTree alphsize (shift,prefixes,body) treevert = (resshift, prefixes `B.append` resprefixes,body `B.append` resbody)
+                                            where (resshift, resprefixes, resbody) = serializeMaybeTree shift treevert
+
+--Main function of this section::
+serializeDictTree::Int->DictTree->B.ByteString
+serializeDictTree alphsize tree = prefixes `B.append` body
+     where
+     (len,prefixes,body) = foldl' (foldSerializeMaybeTree alphsize) (vertplen*(arraylen-1),B.empty,B.empty) convtree
+     arraylen = alphsize*(alphsize+1)
+     convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
+
+                                    
 -- Input/output
 
 type Alphabet = Map Word8 Int
@@ -189,9 +246,19 @@ parseInt = maybefst . BC.readInt
 parseFloat::BC.ByteString -> Maybe Float
 parseFloat = maybefst . listToMaybe . readFloat . BC.unpack
 
-
+parsefile::BC.ByteString->Maybe [DictWord]
 parsefile = (mapM parsedata) . (map BC.words) . BC.lines 
 
+getDictTree::BC.ByteString->DictTree
+getDictTree = fromMaybe [] . (liftM makeTree). parsefile
+
 main = do
+-- content <-BC.getContents
+-- print $ ((liftM makeTree) . parsefile) content
  content <-BC.getContents
- print $ ((liftM makeTree) . parsefile) content
+ print $ map BC.words $ BC.lines content
+{-- 
+ tree<-(liftM getDictTree) $ BC.getContents
+ putStrLn $ drawForest $ map (fmap show) tree
+ B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
+--}

@@ -13,11 +13,12 @@ import qualified Data.Foldable as DF
 import Data.Bits
 
 mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
-rusletter lt = Map.lookup lt mapfromrus
+rusletter lt = Map.findWithDefault '-' lt mapfromrus
+
 type Letter = Int
 data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
 instance Show DictData where
-   show (DictData lt acc term lemma) = show ( rusletter lt ) ++ show lemma 
+   show (DictData lt acc term lemma) =  [rusletter lt]  ++ show lemma 
 type DictNode = Tree DictData
 {--Properties: Nodes are arranged alphabetically with last letters first  --}
 type DictTree = Forest DictData 
@@ -213,7 +214,7 @@ serializeDictTree alphsize tree = prefixes `B.append` body
 
                                     
 -- Input/output
-
+{--
 type Alphabet = Map Word8 Int
 russianBigCp866 = [ 128::Word8 .. 159::Word8] 
 russianSmallCp866 = [160::Word8 ..175::Word8 ] ++ [ 224::Word8 .. 239::Word8]
@@ -251,14 +252,49 @@ parsefile = (mapM parsedata) . (map BC.words) . BC.lines
 
 getDictTree::BC.ByteString->DictTree
 getDictTree = fromMaybe [] . (liftM makeTree). parsefile
+--}
 
+
+type Alphabet = Map Char Int
+russianBig = ['А' .. 'Я' ] 
+russianSmall = ['а' .. 'я']
+russianAlphabet::Alphabet
+russianAlphabet = Map.fromList $ (zip russianBig [0::Int .. 31::Int]) ++ (zip russianSmall [0::Int .. 31::Int])
+
+letters:: Alphabet->String -> Maybe [Letter]
+letters abc s = mapM (flip Map.lookup abc) s  
+
+--Convert triple word lemma freq into data
+parsedata::[String]->Maybe DictWord
+parsedata (a:b:c:[]) = do
+                      lemma <- parseInt b
+                      freq <-parseFloat c
+                      string <- letters russianAlphabet a
+                      return  DictWord { st = string, freq = freq, wlemma = lemma, freeTerm = False}
+parsedata (a:b:[]) = do
+                      freq <- parseFloat b
+                      string <-letters russianAlphabet a
+                      return DictWord {st = string, freq =freq, wlemma = -1, freeTerm = True}
+parsedata _ = Nothing
+
+
+maybefst:: Maybe (a,b) -> Maybe a
+maybefst (Just x) = Just $ fst x
+maybefst _ = Nothing
+
+parseInt::String -> Maybe Int
+parseInt = maybefst . listToMaybe. readDec 
+parseFloat::String -> Maybe Float
+parseFloat = maybefst . listToMaybe . readFloat 
+
+parsefile::String->Maybe [DictWord]
+parsefile = (mapM parsedata) . (map words) . lines 
+
+getDictTree::String->DictTree
+getDictTree = fromMaybe [] . (liftM makeTree). parsefile
 main = do
 -- content <-BC.getContents
 -- print $ ((liftM makeTree) . parsefile) content
- content <-BC.getContents
- print $ map BC.words $ BC.lines content
-{-- 
- tree<-(liftM getDictTree) $ BC.getContents
+ tree<-(liftM getDictTree) $ getContents
  putStrLn $ drawForest $ map (fmap show) tree
  B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
---}

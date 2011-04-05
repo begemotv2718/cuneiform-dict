@@ -123,9 +123,9 @@ postfixlemmas (DictData _ account terminal lst) = (initpsfx $ init lst) `B.appen
           where initpsfx lst = B.concat $ map makelemma lst
                 makelemma x = B.singleton (settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
                 enter0::Int->Word8
-                enter0 x = shiftL (fromIntegral x .&. 31::Word8) 3
+                enter0 x = shiftL (fromIntegral (shiftR x 5) .&. 31::Word8) 3
                 enter1::Int->Word8
-                enter1 x = fromIntegral (shiftR x 5)      
+                enter1 x = fromIntegral x .&. 255::Word8      
                 lastpsfx acc term x = (B.singleton.settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
                 -- we may need to adjust in case of account and terminal absent
 settail::Word8->Word8
@@ -195,7 +195,7 @@ serializeMaybeTree offset (Just tr) = (offset + (len  rl-1)+subtreelen rl  -vert
                                           `B.append` (B.singleton $ vertpShift2 offset)
                         setcont  = setBit2 0
                         setnoterm ln = setBit2If (ln > 0) 1 
-                        setexists = setBit2 3
+                        setexists = setBit2 2
                         vertpShift0 x = shiftL (fromIntegral (shiftR x 16).&. (31::Word8)) 3 
                         vertpShift1 x = fromIntegral (shiftR x 8) .&. 255::Word8  
                         vertpShift2 x = fromIntegral x .&. 255::Word8
@@ -204,14 +204,51 @@ foldSerializeMaybeTree::Int->(Int,B.ByteString,B.ByteString)->Maybe (Tree Interm
 foldSerializeMaybeTree alphsize (shift,prefixes,body) treevert = (resshift, prefixes `B.append` resprefixes,body `B.append` resbody)
                                             where (resshift, resprefixes, resbody) = serializeMaybeTree shift treevert
 
+
+type TestTuples = [TestTuple]
+data TestTuple = TT { pref::B.ByteString, suf::B.ByteString}
+{-
+instance Show TestTuples where
+   show [] =  "[]"
+   show lst = "["++map showtuple lst++"]"
+      where showtuple (a,b) = "("++ (concat $ fmap showhex a)++","++(concat $ fmap showhex b)++"), "
+            showhex::Word8->String
+            showhex a = showHex a ""
+-}
+instance Show TestTuple
+  where 
+    show (TT a b) = "("++(concat $ map showhex $ B.unpack a) ++","++(concat $ map showhex $ B.unpack b)++")"
+      where
+        showhex::Word8->String
+        showhex a = hexdigit (shiftR a 4) ++ hexdigit (a .&. 0x0f)
+        hexdigit::Word8->String
+        hexdigit a 
+                  | a<10 = show a
+                  | (a==10) = "a"
+                  | (a==11) = "b"
+                  | (a==12) = "c"
+                  | (a==13) = "d"
+                  | (a==14) = "e"
+                  | (a==15) = "f"            
+            
+foldSerializeMaybeTreeTest::Int->(Int,TestTuples)->Maybe (Tree IntermediateVertex)->(Int,TestTuples)
+foldSerializeMaybeTreeTest alphsize (shift,lst) treevert = (resshift, lst++[TT resprefixes resbody ])
+                                            where (resshift, resprefixes, resbody) = serializeMaybeTree shift treevert
+
 --Main function of this section::
 serializeDictTree::Int->DictTree->B.ByteString
-serializeDictTree alphsize tree = prefixes `B.append` body
+serializeDictTree alphsize tree = maxlevel `B.append` prefixes `B.append` body
      where
-     (len,prefixes,body) = foldl' (foldSerializeMaybeTree alphsize) (vertplen*(arraylen-1),B.empty,B.empty) convtree
+     (len,prefixes,body) = foldl' (foldSerializeMaybeTree alphsize) (vertplen*arraylen,B.empty,B.empty) convtree
      arraylen = alphsize*(alphsize+1)
      convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
-
+     maxlevel = B.singleton $ shiftL (2::Word8) 2 
+serializeDictTreeTest::Int->DictTree->TestTuples
+serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest alphsize) (vertplen*arraylen,[]) convtree 
+     where
+     arraylen = alphsize*(alphsize+1)
+     convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
+     maxlevel = B.singleton $ shiftL (2::Word8) 2 
                                     
 -- Input/output
 {--
@@ -298,3 +335,4 @@ main = do
  tree<-(liftM getDictTree) $ getContents
  putStrLn $ drawForest $ map (fmap show) tree
  B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
+ print $ serializeDictTreeTest 32 tree 

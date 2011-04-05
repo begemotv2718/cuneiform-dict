@@ -194,7 +194,7 @@ int main(int argc, char **argv){
           int tableoffset=dict->vartable[i].tablenum;
           int maxlen = dict->vartable[i].maxtaillth;
           uchar* ptr=(uchar*)(dict->tailset_root+dict->table[tableoffset]);
-          printf("Analizing table %d maxlen %d\n\n",i,maxlen);
+          //printf("Analizing table %d maxlen %d\n\n",i,maxlen);
           for(;mask !=0; mask>>=1){
              if((mask&0x01)){
                while(!TAILSET_TAILEND(ptr)){ 
@@ -202,13 +202,14 @@ int main(int argc, char **argv){
                  ptr++;
                };
                printf("%c",dictHdr->abcLower[TAILSET_CH(ptr)]);
-               printf("\n");
+               printf(" ");
              }else{
                while(!TAILSET_TAILEND(ptr))
                  ptr++;
              }
              ptr++;
           }
+          printf("\n");
         }
 
         free(buf);

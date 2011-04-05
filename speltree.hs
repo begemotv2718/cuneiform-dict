@@ -185,7 +185,7 @@ unfoldLevel2  alphsize = concatMap (extractPrepend alphsize) . unfoldForest2List
 
 serializeMaybeTree::Int->Maybe (Tree IntermediateVertex)->(Int, B.ByteString, B.ByteString)
 serializeMaybeTree offset Nothing = (offset-vertplen, B.replicate (fromIntegral vertplen) (0::Word8),B.empty)
-serializeMaybeTree offset (Just tr) = (offset + (len  rl-1)+subtreelen rl  -vertplen,
+serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ B.tail $ DF.foldMap serializeIV tr) -vertplen, --(len  rl-1)+subtreelen rl  -vertplen,
                                      vertexP offset rl, 
                                      B.tail $ DF.foldMap serializeIV tr) 
                   where rl = rootLabel tr

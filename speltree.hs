@@ -63,6 +63,9 @@ unfolder b = (DictData { letter = fstletter $ head b, account = sumdata b, termi
 makeTree:: [DictWord]->DictTree
 makeTree list = unfoldForest  unfolder (groupBy fstlettereq list)
 
+unfoldLevel2::Int->Forest DictData->[Maybe (Tree DictData)]
+unfoldLevel2  alphsize = concatMap (extractPrepend alphsize) . unfoldForest2List alphsize
+
 unfoldForest2List:: Int->Forest DictData -> [Maybe (Tree DictData)]
 unfoldForest2List alphsize forest = [find (((==) i).letter.rootLabel) forest | i<-[0 .. alphsize-1]] 
 
@@ -100,12 +103,31 @@ data IntermediateVertex = IVertex {vertexV::Word8, postfixEnding::B.ByteString, 
 instance Show IntermediateVertex where
   show iv = showHex (fromIntegral $ vertexV iv) ""
 
+showIvData::(Show a)=>Int->[Maybe (Tree a)]->String
+showIvData alphsize dat = concatMap showmtuple $ numberList 0 dat
+     where 
+     showmtuple (num, tree) = 
+        if isJust tree then
+          labelfstltrs num ++ "\n" ++ drawTree ( fmap show $ fromJust tree)++"\n"
+        else ""
+     labelfstltrs num = [rusletter fstletter] ++ if sndletter>0 then [rusletter sndletter] else ""
+        where 
+           fstletter = num `div` (alphsize+1)
+           sndletter = (num `mod` (alphsize+1)) -1
+                                 
+
+numberList::Int->[a]->[(Int,a)]
+numberList startindex lst = snd $ mapAccumL f startindex lst
+            where 
+                  f::Int->a->(Int,(Int,a))
+                  f acc el = (acc+1,(acc,el))
+
 convDictStage1::[Maybe (Tree DictData)]->[Maybe (Tree IntermediateVertex)] 
-convDictStage1 = map (fmap convVertex) 
+convDictStage1 = map (fmap $ fmap convVertex) 
 
 convVertex::DictData->IntermediateVertex
 convVertex a = IVertex { vertexV = encodeVertexV $ letter a, 
-                         postfixEnding = encodePostfixEnding $ wlemma a,
+                         postfixEnding = encodePostfixEnding $ lemma a,
                          postfixAccount = encodePostfixAccount a,
                          postfixAddr = B.empty,
                          subTree = B.empty
@@ -150,9 +172,7 @@ encodePostfixAddr x
 
 vertplen::Int
 vertplen = 3 -- Length of the p-type vertex                                     
-
-unfoldLevel2::Int->Forest IntermediateVertex->[Maybe (Tree IntermediateVertex)]
-unfoldLevel2  alphsize = concatMap (extractPrepend alphsize) . unfoldForest2List alphsize
+{-
 
 serializeMaybeTree::Int->Maybe (Tree IntermediateVertex)->(Int, B.ByteString, B.ByteString)
 serializeMaybeTree offset Nothing = (offset-vertplen, B.replicate (fromIntegral vertplen) (0::Word8),B.empty)
@@ -213,7 +233,7 @@ serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest a
      convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
                                     
-
+-}
 
 type Alphabet = Map Char Int
 russianBig = ['А' .. 'Я' ] 
@@ -257,5 +277,5 @@ main = do
 -- print $ ((liftM makeTree) . parsefile) content
  tree<-(liftM getDictTree) $ getContents
  putStrLn $ drawForest $ map (fmap show) tree
- B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
- print $ serializeDictTreeTest 32 tree 
+ --B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
+ putStrLn $ showIvData 32 $ unfoldLevel2 32 tree 

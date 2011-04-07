@@ -7,3 +7,7 @@
 *.hi
 *.o
 cuneiform-out.txt
+*.dat
+readspeldict
+speltree
+endings

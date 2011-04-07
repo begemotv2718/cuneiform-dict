@@ -63,6 +63,17 @@ unfolder b = (DictData { letter = fstletter $ head b, account = sumdata b, termi
 makeTree:: [DictWord]->DictTree
 makeTree list = unfoldForest  unfolder (groupBy fstlettereq list)
 
+unfoldForest2List:: Int->Forest DictData -> [Maybe (Tree DictData)]
+unfoldForest2List alphsize forest = [find (((==) i).letter.rootLabel) forest | i<-[0 .. alphsize-1]] 
+
+
+extractPrepend:: Int->Maybe (Tree DictData)->[Maybe (Tree DictData)]
+extractPrepend alphsize (Just vert) = setIfTerminal vert:(unfoldForest2List alphsize $ subForest vert) 
+                                  where 
+                                   setIfTerminal vert = if isNotTerminal vert then Nothing else Just $ clearSubnodes vert
+                                   isNotTerminal vert = (isEmpty.lemma.rootLabel) vert && (not.terminal.rootLabel) vert 
+                                   clearSubnodes a = Node { rootLabel = rootLabel a, subForest = []}
+extractPrepend alphsize Nothing = replicate (alphsize+1) Nothing
 -- Tree to binary conversion
 
 mapAccumTree::(a->[b]->(b,c))->Tree a -> (b, Tree c)
@@ -81,102 +92,62 @@ fmapForest f forest = zipWith Node (f rootlabels) (map (fmapForest f) subforests
            where rootlabels = map rootLabel forest
                  subforests = map subForest forest
 
-
-data IntermediateVertex = IVertex { dictdata::DictData, isLast::Bool, len::Int, subtreelen::Int}
-
-calcLength::Forest IntermediateVertex->Forest IntermediateVertex
-calcLength t = map (mapAccumTree2 mycalclength) t
-
-mycalclength::IntermediateVertex->[IntermediateVertex]->IntermediateVertex
-mycalclength dictv sublist = IVertex { dictdata=dictdata dictv, 
-                                       isLast=isLast dictv,
-                                       len = 1+lemmalen+ accntlen+addrlen subtrlen (isLast dictv),
-                                       subtreelen = subtrlen}
-                             where lemmalen = 2*(length. lemma.dictdata) dictv
-                                   accntlen 
-                                            | (account.dictdata) dictv >0.0 || (terminal.dictdata) dictv = 1
-                                            | otherwise = 0
-                                   subtrlen = (sum $ map len sublist) + (sum $ map subtreelen sublist) 
-                                   addrlen s lst 
-                                             | s<0 = -1
-                                             | ((s>=0) && (s<32)) || lst  = 1
-                                             | (s>=32) && (s<32*128) && not lst =2
-                                             | s>= 32*128 && not lst = 3
-
-markLast::DictTree-> Forest IntermediateVertex
-markLast = fmapForest marklastv where 
-                                 marklastv [] = []
-                                 marklastv a = map notlast (init a) ++ [setlast $ last a]
-                                 setlast::DictData->IntermediateVertex
-                                 setlast a = IVertex a True 0 0
-                                 notlast a = IVertex a False 0 0  
-                                       
---serializeDictNode::DictNode->B.ByteString
-
 setBit2 = flip setBit
+setBit2If::Bool->Int->Word8->Word8
+setBit2If cond bit = if cond then setBit2 bit else id
 
-serializeIV::IntermediateVertex->B.ByteString
-serializeIV (IVertex a lst ln sbtrln) = vertV a sbtrln `B.append` postfixlemmas a `B.append` postfixaccount a `B.append` postfixaddr lst sbtrln  
-postfixlemmas::DictData->B.ByteString
-postfixlemmas (DictData _ _ _ []) = B.empty
-postfixlemmas (DictData _ account terminal lst) = (initpsfx $ init lst) `B.append` (lastpsfx account terminal $ last lst)
-          where initpsfx lst = B.concat $ map makelemma lst
+data IntermediateVertex = IVertex {vertexV::Word8, postfixEnding::B.ByteString, postfixAccount::B.ByteString, postfixAddr::B.ByteString, subTree::B.ByteString }
+instance Show IntermediateVertex where
+  show iv = showHex (fromIntegral $ vertexV iv) ""
+
+convDictStage1::[Maybe (Tree DictData)]->[Maybe (Tree IntermediateVertex)] 
+convDictStage1 = map (fmap convVertex) 
+
+convVertex::DictData->IntermediateVertex
+convVertex a = IVertex { vertexV = encodeVertexV $ letter a, 
+                         postfixEnding = encodePostfixEnding $ wlemma a,
+                         postfixAccount = encodePostfixAccount a,
+                         postfixAddr = B.empty,
+                         subTree = B.empty
+                       } 
+
+encodeVertexV::Letter->Word8
+encodeVertexV lt = shiftL (fromIntegral lt .&. 63::Word8) 2 
+
+encodePostfixEnding::[Int]->B.ByteString
+encodePostfixEnding lst = B.concat $ map makelemma lst
+          where 
                 makelemma x = B.singleton (settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
                 enter0::Int->Word8
                 enter0 x = shiftL (fromIntegral (shiftR x 5) .&. 31::Word8) 3
                 enter1::Int->Word8
                 enter1 x = fromIntegral x .&. 255::Word8      
-                lastpsfx acc term x = (B.singleton.settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
-                -- we may need to adjust in case of account and terminal absent
+
 settail::Word8->Word8
 settail = setBit2 1
 setcont = setBit2 0
 setaccount = setBit2 2
-setBit2If::Bool->Int->Word8->Word8
-setBit2If cond bit = if cond then setBit2 bit else id
 
-postfixaccount (DictData _ acc term _) = if acc == 0.0 then B.empty else B.singleton $ settail. setaccount. setBit2If term 3 $ makefreq acc
+encodePostfixAccount (DictData _ acc term _) = if acc == 0.0 then B.empty else B.singleton $ settail. setaccount. setBit2If term 3 $ makefreq acc
               where makefreq acc = shiftL (round acc .&. 7::Word8) 5 
 
-postfixaddr::Bool->Int->B.ByteString
-postfixaddr lst subtreelen = if lst then makelast else encodetreelen subtreelen
-        where
-           makelast = B.singleton 0
-           encodetreelen::Int->B.ByteString
-           encodetreelen x 
-                           | x<32 = B.singleton (shift0 x)
-                           | (x>=32) && (x<32*128) = B.singleton (setBit2 2 $ shift01 x) `B.append` (B.singleton $ shift1 x)
-                           | x>=32*128 = B.singleton (setBit2 2 $ shift02 x) `B.append` B.singleton (setBit2 0 $ shift12 x) `B.append` (B.singleton $ shift2 x)
-              where
-              --not correct here!!!
-              shift0::Int->Word8
-              shift0 x = shiftL (fromIntegral x .&. 31::Word8) 3
-              shift01 x = shift0 $ shiftR x 7
-              shift02 x = shift0 $ shiftR x 15 
-              shift1::Int->Word8
-              shift1 x = shiftL (fromIntegral x .&. 127::Word8) 1
-              shift12 x = shift1 $ shiftR x 8
-              shift2::Int->Word8
-              shift2 x = fromIntegral x .&. 255::Word8  
+encodePostfixAddr::Int->B.ByteString
+encodePostfixAddr x 
+                  | x<32 = B.singleton (shift0 x)
+                  | (x>=32) && (x<32*128) = B.singleton (setBit2 2 $ shift01 x) `B.append` (B.singleton $ shift1 x)
+                  | x>=32*128 = B.singleton (setBit2 2 $ shift02 x) `B.append` B.singleton (setBit2 0 $ shift12 x) `B.append` (B.singleton $ shift2 x)
+                    where
+                    --not correct here!!!
+                    shift0::Int->Word8
+                    shift0 x = shiftL (fromIntegral x .&. 31::Word8) 3
+                    shift01 x = shift0 $ shiftR x 7
+                    shift02 x = shift0 $ shiftR x 15 
+                    shift1::Int->Word8
+                    shift1 x = shiftL (fromIntegral x .&. 127::Word8) 1
+                    shift12 x = shift1 $ shiftR x 8
+                    shift2::Int->Word8
+                    shift2 x = fromIntegral x .&. 255::Word8  
 
-vertV (DictData lt _ _ _) ln = (B.singleton.setcont.setnoterm ln.setkey) lt
-      where 
-           setkey lt = shiftL (fromIntegral lt .&. 63::Word8) 2 
-           setnoterm ln = setBit2If (ln > 0) 1 
-
-
-unfoldForest2List:: Int->Forest IntermediateVertex -> [Maybe (Tree IntermediateVertex)]
-unfoldForest2List alphsize forest = [find (((==) i).letter.dictdata.rootLabel) forest | i<-[0 .. alphsize-1]] 
-
-
-extractPrepend:: Int->Maybe (Tree IntermediateVertex)->[Maybe (Tree IntermediateVertex)]
-extractPrepend alphsize (Just vert) = setIfTerminal vert:(unfoldForest2List alphsize $ subForest vert) 
-                                  where 
-                                   setIfTerminal vert = if isNotTerminal vert then Nothing else Just $ clearSubnodes vert
-                                   isNotTerminal vert = (isEmpty.lemma.dictdata.rootLabel) vert && (not.terminal.dictdata.rootLabel) vert 
-                                   clearSubnodes a = Node { rootLabel = rootLabel a, subForest = []}
-extractPrepend alphsize Nothing = replicate (alphsize+1) Nothing
-    
 vertplen::Int
 vertplen = 3 -- Length of the p-type vertex                                     
 
@@ -207,14 +178,6 @@ foldSerializeMaybeTree alphsize (shift,prefixes,body) treevert = (resshift, pref
 
 type TestTuples = [TestTuple]
 data TestTuple = TT { pref::B.ByteString, suf::B.ByteString}
-{-
-instance Show TestTuples where
-   show [] =  "[]"
-   show lst = "["++map showtuple lst++"]"
-      where showtuple (a,b) = "("++ (concat $ fmap showhex a)++","++(concat $ fmap showhex b)++"), "
-            showhex::Word8->String
-            showhex a = showHex a ""
--}
 instance Show TestTuple
   where 
     show (TT a b) = "("++(concat $ map showhex $ B.unpack a) ++","++(concat $ map showhex $ B.unpack b)++")"
@@ -250,46 +213,6 @@ serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest a
      convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
                                     
--- Input/output
-{--
-type Alphabet = Map Word8 Int
-russianBigCp866 = [ 128::Word8 .. 159::Word8] 
-russianSmallCp866 = [160::Word8 ..175::Word8 ] ++ [ 224::Word8 .. 239::Word8]
-russianAlphabet::Alphabet
-russianAlphabet = Map.fromList $ (zip russianBigCp866 [0::Int .. 31::Int]) ++ (zip russianSmallCp866 [0::Int .. 31::Int])
-
-letters:: Alphabet->BC.ByteString -> Maybe [Letter]
-letters abc s = mapM (flip Map.lookup abc) (B.unpack s)  
-
---Convert triple word lemma freq into data
-parsedata::[BC.ByteString]->Maybe DictWord
-parsedata (a:b:c:[]) = do
-                      lemma <- parseInt b
-                      freq <-parseFloat c
-                      string <- letters russianAlphabet a
-                      return  DictWord { st = string, freq = freq, wlemma = lemma, freeTerm = False}
-parsedata (a:b:[]) = do
-                      freq <- parseFloat b
-                      string <-letters russianAlphabet a
-                      return DictWord {st = string, freq =freq, wlemma = -1, freeTerm = True}
-parsedata _ = Nothing
-
-
-maybefst:: Maybe (a,b) -> Maybe a
-maybefst (Just x) = Just $ fst x
-maybefst _ = Nothing
-
-parseInt::BC.ByteString -> Maybe Int
-parseInt = maybefst . BC.readInt 
-parseFloat::BC.ByteString -> Maybe Float
-parseFloat = maybefst . listToMaybe . readFloat . BC.unpack
-
-parsefile::BC.ByteString->Maybe [DictWord]
-parsefile = (mapM parsedata) . (map BC.words) . BC.lines 
-
-getDictTree::BC.ByteString->DictTree
-getDictTree = fromMaybe [] . (liftM makeTree). parsefile
---}
 
 
 type Alphabet = Map Char Int

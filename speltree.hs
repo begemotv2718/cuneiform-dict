@@ -125,6 +125,31 @@ numberList startindex lst = snd $ mapAccumL f startindex lst
 convDictStage1::[Maybe (Tree DictData)]->[Maybe (Tree IntermediateVertex)] 
 convDictStage1 = map (fmap $ fmap convVertex) 
 
+convDictStage2::[Maybe (Tree IntermediateVertex)]->[Maybe (Tree IntermediateVertex)] 
+convDictStage2 = map (fmap  convertorStage2 ) 
+
+
+convertorStage2::Tree IntermediateVertex -> Tree IntermediateVertex
+convertorStage2 = mapAccumTree2 convertOperation
+
+convertOperation::IntermediateVertex->[IntermediateVertex]->IntermediateVertex
+convertOperation vertex subvertexes = IVertex { 
+                 vertexV = vertexV vertex,
+                 postfixEnding = postfixEnding vertex,
+                 postfixAccount = postfixAccount vertex,
+                 postfixAddr = if postfixAddr vertex == B.singleton 0 
+                                then B.singleton 0 
+                                else encodePostfixAddr $ fromIntegral $ B.length resSubTree,
+                 subTree = resSubTree
+                 }
+                where 
+                   resSubTree = summarize subvertexes
+                   summarize::[IntermediateVertex]->B.ByteString
+                   summarize = B.concat . map joinelements
+                   joinelements::IntermediateVertex->B.ByteString
+                   joinelements (IVertex a b c d e) = B.concat [B.singleton a,b,c,d,e]
+                   --Add vertex operations according to taste
+
 convVertex::DictData->IntermediateVertex
 convVertex a = IVertex { vertexV = encodeVertexV $ letter a, 
                          postfixEnding = encodePostfixEnding $ lemma a,

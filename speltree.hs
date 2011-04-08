@@ -172,16 +172,15 @@ encodePostfixAddr x
 
 vertplen::Int
 vertplen = 3 -- Length of the p-type vertex                                     
-{-
 
 serializeMaybeTree::Int->Maybe (Tree IntermediateVertex)->(Int, B.ByteString, B.ByteString)
 serializeMaybeTree offset Nothing = (offset-vertplen, B.replicate (fromIntegral vertplen) (0::Word8),B.empty)
-serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ B.tail $ DF.foldMap serializeIV tr) -vertplen, --(len  rl-1)+subtreelen rl  -vertplen,
-                                     vertexP offset rl, 
-                                     B.tail $ DF.foldMap serializeIV tr) 
+serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ subtr tr) -vertplen, --(len  rl-1)+subtreelen rl  -vertplen,
+                                     vertexP offset (fromIntegral $ B.length $ subtr tr), 
+                                     subtr tr) 
                   where rl = rootLabel tr
-                        vertexP offset (IVertex a lst ln sbtrln) = 
-                                           (B.singleton $ setexists $ setcont $ setnoterm sbtrln $ vertpShift0 offset) 
+                        vertexP offset ln = 
+                                           (B.singleton $ setexists $ setcont $ setnoterm ln $ vertpShift0 offset) 
                                           `B.append` (B.singleton $ vertpShift1 offset) 
                                           `B.append` (B.singleton $ vertpShift2 offset)
                         setcont  = setBit2 0
@@ -190,6 +189,9 @@ serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ B.tai
                         vertpShift0 x = shiftL (fromIntegral (shiftR x 16).&. (31::Word8)) 3 
                         vertpShift1 x = fromIntegral (shiftR x 8) .&. 255::Word8  
                         vertpShift2 x = fromIntegral x .&. 255::Word8
+                        subtr::Tree IntermediateVertex->B.ByteString
+                        subtr tr = subtr' $ rootLabel tr
+                        subtr' l = B.concat [postfixEnding l, postfixAccount l, postfixAddr l, subTree l]
 
 foldSerializeMaybeTree::Int->(Int,B.ByteString,B.ByteString)->Maybe (Tree IntermediateVertex)->(Int,B.ByteString,B.ByteString)
 foldSerializeMaybeTree alphsize (shift,prefixes,body) treevert = (resshift, prefixes `B.append` resprefixes,body `B.append` resbody)
@@ -224,16 +226,16 @@ serializeDictTree alphsize tree = maxlevel `B.append` prefixes `B.append` body
      where
      (len,prefixes,body) = foldl' (foldSerializeMaybeTree alphsize) (vertplen*arraylen,B.empty,B.empty) convtree
      arraylen = alphsize*(alphsize+1)
-     convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
+     convtree = convDictStage1 $ unfoldLevel2 alphsize tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
 serializeDictTreeTest::Int->DictTree->TestTuples
 serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest alphsize) (vertplen*arraylen,[]) convtree 
      where
      arraylen = alphsize*(alphsize+1)
-     convtree = unfoldLevel2 alphsize $ (calcLength.markLast) tree  
+     convtree = convDictStage1 $ unfoldLevel2 alphsize tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
                                     
--}
+
 
 type Alphabet = Map Char Int
 russianBig = ['А' .. 'Я' ] 

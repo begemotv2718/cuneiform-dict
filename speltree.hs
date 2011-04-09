@@ -14,6 +14,19 @@ import Data.Bits
 
 mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
 rusletter lt = Map.findWithDefault '-' lt mapfromrus
+showhex::Word8->String
+showhex a = hexdigit (shiftR a 4) ++ hexdigit (a .&. 0x0f)
+hexdigit::Word8->String
+hexdigit a 
+          | a<10 = show a
+          | (a==10) = "a"
+          | (a==11) = "b"
+          | (a==12) = "c"
+          | (a==13) = "d"
+          | (a==14) = "e"
+          | (a==15) = "f"            
+showhexstring::B.ByteString->String
+showhexstring = concatMap showhex . B.unpack
 
 type Letter = Int
 data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
@@ -101,7 +114,9 @@ setBit2If cond bit = if cond then setBit2 bit else id
 
 data IntermediateVertex = IVertex {vertexV::Word8, postfixEnding::B.ByteString, postfixAccount::B.ByteString, postfixAddr::B.ByteString, subTree::B.ByteString }
 instance Show IntermediateVertex where
-  show iv = showHex (fromIntegral $ vertexV iv) ""
+  show iv =  (show $ letterfromvv $ vertexV iv) ++ " " ++ (showhexstring $ postfixEnding iv) ++ " " 
+             ++ (showhexstring $ postfixAccount iv) ++ " " ++ (showhexstring $ postfixAddr iv) 
+    where letterfromvv v = rusletter $ decodeVertexVLetter v 
 
 showIvData::(Show a)=>Int->[Maybe (Tree a)]->String
 showIvData alphsize dat = concatMap showmtuple $ numberList 0 dat
@@ -160,6 +175,8 @@ convVertex a = IVertex { vertexV = encodeVertexV $ letter a,
 
 encodeVertexV::Letter->Word8
 encodeVertexV lt = shiftL (fromIntegral lt .&. 63::Word8) 2 
+decodeVertexVLetter::Word8->Letter
+decodeVertexVLetter v = fromIntegral $ shiftR v 2
 
 encodePostfixEnding::[Int]->B.ByteString
 encodePostfixEnding lst = B.concat $ map makelemma lst
@@ -228,19 +245,7 @@ data TestTuple = TT { pref::B.ByteString, suf::B.ByteString}
 instance Show TestTuple
   where 
     show (TT a b) = "("++(concat $ map showhex $ B.unpack a) ++","++(concat $ map showhex $ B.unpack b)++")"
-      where
-        showhex::Word8->String
-        showhex a = hexdigit (shiftR a 4) ++ hexdigit (a .&. 0x0f)
-        hexdigit::Word8->String
-        hexdigit a 
-                  | a<10 = show a
-                  | (a==10) = "a"
-                  | (a==11) = "b"
-                  | (a==12) = "c"
-                  | (a==13) = "d"
-                  | (a==14) = "e"
-                  | (a==15) = "f"            
-            
+
 foldSerializeMaybeTreeTest::Int->(Int,TestTuples)->Maybe (Tree IntermediateVertex)->(Int,TestTuples)
 foldSerializeMaybeTreeTest alphsize (shift,lst) treevert = (resshift, lst++[TT resprefixes resbody ])
                                             where (resshift, resprefixes, resbody) = serializeMaybeTree shift treevert

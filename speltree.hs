@@ -136,20 +136,32 @@ numberList startindex lst = snd $ mapAccumL f startindex lst
             where 
                   f::Int->a->(Int,(Int,a))
                   f acc el = (acc+1,(acc,el))
-
+--convDictStage1 performs preliminary binary encoding of dictionary data
 convDictStage1::[Maybe (Tree DictData)]->[Maybe (Tree IntermediateVertex)] 
 convDictStage1 = map (fmap $ fmap convVertex) 
 
+
+--convDictStage2 accumulates subtree strings calculates addresses and take into account correlations
 convDictStage2::[Maybe (Tree IntermediateVertex)]->[Maybe (Tree IntermediateVertex)] 
 convDictStage2 = map (fmap  convertorStage2 ) 
 
+markLastStruct:: [Maybe (Tree IntermediateVertex)]->[Maybe (Tree IntermediateVertex)]
+markLastStruct = map (fmap markLast)
+
+markLast:: Tree IntermediateVertex -> Tree IntermediateVertex
+markLast a = Node { rootLabel =rootLabel a, subForest = fmapForest marklast $ subForest a}
+          where marklast:: [IntermediateVertex] -> [IntermediateVertex]
+                marklast [] = []
+                marklast lst = init lst ++ [ setemptyaddr $ last lst ]
+                setemptyaddr::IntermediateVertex -> IntermediateVertex
+                setemptyaddr (IVertex a end acc addr sbtr) = IVertex a end acc (B.singleton 0) sbtr
 
 convertorStage2::Tree IntermediateVertex -> Tree IntermediateVertex
 convertorStage2 = mapAccumTree2 convertOperation
 
 convertOperation::IntermediateVertex->[IntermediateVertex]->IntermediateVertex
 convertOperation vertex subvertexes = IVertex { 
-                 vertexV = vertexV vertex,
+                 vertexV = setnoterm (B.length resSubTree) $ vertexV vertex,
                  postfixEnding = postfixEnding vertex,
                  postfixAccount = postfixAccount vertex,
                  postfixAddr = if postfixAddr vertex == B.singleton 0 
@@ -174,7 +186,7 @@ convVertex a = IVertex { vertexV = encodeVertexV $ letter a,
                        } 
 
 encodeVertexV::Letter->Word8
-encodeVertexV lt = shiftL (fromIntegral lt .&. 63::Word8) 2 
+encodeVertexV lt = setcont $ shiftL (fromIntegral lt .&. 63::Word8) 2 
 decodeVertexVLetter::Word8->Letter
 decodeVertexVLetter v = fromIntegral $ shiftR v 2
 
@@ -191,8 +203,9 @@ settail::Word8->Word8
 settail = setBit2 1
 setcont = setBit2 0
 setaccount = setBit2 2
+setnoterm ln = setBit2If (ln > 0) 1 
 
-encodePostfixAccount (DictData _ acc term _) = if acc == 0.0 then B.empty else B.singleton $ settail. setaccount. setBit2If term 3 $ makefreq acc
+encodePostfixAccount (DictData _ acc term _) = if acc == 0.0 then B.empty else B.singleton $ setcont . settail. setaccount. setBit2If term 3 $ makefreq acc
               where makefreq acc = shiftL (round acc .&. 7::Word8) 5 
 
 encodePostfixAddr::Int->B.ByteString
@@ -226,7 +239,6 @@ serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ subtr
                                           `B.append` (B.singleton $ vertpShift1 offset) 
                                           `B.append` (B.singleton $ vertpShift2 offset)
                         setcont  = setBit2 0
-                        setnoterm ln = setBit2If (ln > 0) 1 
                         setexists = setBit2 2
                         vertpShift0 x = shiftL (fromIntegral (shiftR x 16).&. (31::Word8)) 3 
                         vertpShift1 x = fromIntegral (shiftR x 8) .&. 255::Word8  

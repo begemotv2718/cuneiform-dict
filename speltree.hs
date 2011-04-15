@@ -114,9 +114,11 @@ setBit2If cond bit = if cond then setBit2 bit else id
 
 data IntermediateVertex = IVertex {vertexV::Word8, postfixEnding::B.ByteString, postfixAccount::B.ByteString, postfixAddr::B.ByteString, subTree::B.ByteString }
 instance Show IntermediateVertex where
-  show iv =  (show $ letterfromvv $ vertexV iv) ++ " " ++ (showhexstring $ postfixEnding iv) ++ " " 
-             ++ (showhexstring $ postfixAccount iv) ++ " " ++ (showhexstring $ postfixAddr iv) 
+  show iv =  [ letterfromvv $ vertexV iv] ++ "|"++(showbits $vertexV iv)++" E:" ++ (showhexstring $ postfixEnding iv) ++ " Ac:" 
+             ++ (showhexstring $ postfixAccount iv) ++ " Ad:" ++ (showhexstring $ postfixAddr iv) 
     where letterfromvv v = rusletter $ decodeVertexVLetter v 
+          showbits::Word8->String
+          showbits x = (if testBit x 0 then "c" else "")++(if testBit x 1 then "n" else "") 
 
 showIvData::(Show a)=>Int->[Maybe (Tree a)]->String
 showIvData alphsize dat = concatMap showmtuple $ numberList 0 dat
@@ -166,7 +168,7 @@ convertOperation vertex subvertexes = IVertex {
                  postfixAccount = postfixAccount vertex,
                  postfixAddr = if postfixAddr vertex == B.singleton 0 
                                 then B.singleton 0 
-                                else encodePostfixAddr $ fromIntegral $ B.length resSubTree,
+                                else encodePostfixAddr $ fromIntegral $ sum $ map B.length [resSubTree, B.singleton $ vertexV vertex, postfixEnding vertex, postfixAccount vertex ],
                  subTree = resSubTree
                  }
                 where 
@@ -210,9 +212,9 @@ encodePostfixAccount (DictData _ acc term _) = if acc == 0.0 then B.empty else B
 
 encodePostfixAddr::Int->B.ByteString
 encodePostfixAddr x 
-                  | x<32 = B.singleton (shift0 x)
-                  | (x>=32) && (x<32*128) = B.singleton (setBit2 2 $ shift01 x) `B.append` (B.singleton $ shift1 x)
-                  | x>=32*128 = B.singleton (setBit2 2 $ shift02 x) `B.append` B.singleton (setBit2 0 $ shift12 x) `B.append` (B.singleton $ shift2 x)
+                  | x<(32-1) = B.singleton (shift0 (x+1))
+                  | (x>=(32-1)) && (x<(32*128-2)) = B.singleton (setBit2 2 $ shift01 (x+2)) `B.append` (B.singleton $ shift1 (x+2))
+                  | x>=(32*128-2) = B.singleton (setBit2 2 $ shift02 (x+3)) `B.append` B.singleton (setBit2 0 $ shift12 (x+3)) `B.append` (B.singleton $ shift2 (x+3))
                     where
                     --not correct here!!!
                     shift0::Int->Word8
@@ -268,13 +270,13 @@ serializeDictTree alphsize tree = maxlevel `B.append` prefixes `B.append` body
      where
      (len,prefixes,body) = foldl' (foldSerializeMaybeTree alphsize) (vertplen*arraylen,B.empty,B.empty) convtree
      arraylen = alphsize*(alphsize+1)
-     convtree = convDictStage1 $ unfoldLevel2 alphsize tree  
+     convtree = convDictStage2 $ markLastStruct $ convDictStage1 $ unfoldLevel2 alphsize tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
 serializeDictTreeTest::Int->DictTree->TestTuples
 serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest alphsize) (vertplen*arraylen,[]) convtree 
      where
      arraylen = alphsize*(alphsize+1)
-     convtree = convDictStage1 $ unfoldLevel2 alphsize tree  
+     convtree = convDictStage2 $ markLastStruct $ convDictStage1 $ unfoldLevel2 alphsize tree  
      maxlevel = B.singleton $ shiftL (2::Word8) 2 
                                     
 
@@ -323,3 +325,7 @@ main = do
  putStrLn $ drawForest $ map (fmap show) tree
  --B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
  putStrLn $ showIvData 32 $ unfoldLevel2 32 tree 
+ putStrLn $ showIvData 32 $ convDictStage1 $ unfoldLevel2 32 tree
+ putStrLn $ showIvData 32 $ markLastStruct $ convDictStage1 $ unfoldLevel2 32 tree
+ putStrLn $ showIvData 32 $ convDictStage2 $ markLastStruct $ convDictStage1 $ unfoldLevel2 32 tree
+ B.writeFile "dictree1.dat" $ serializeDictTree 32 tree

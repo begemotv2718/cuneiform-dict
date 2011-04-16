@@ -350,7 +350,7 @@ int16_t analyse(int16_t * account, int16_t * wordsize, int16_t * found) {
 	if (VERTV_CONT(ndptr) != 0 && rest >= 0) {
                 printf("   VERTV_CONT!=0 for ndptr rest=%d\n",rest);
 		int16_t ret = test_tail(ptr, account, &tailmaxl, found);
-                printf("   Result of test_tail ret=%d found=%d\n",ret,*found);
+                printf("   Result of test_tail ret=%d found=%d account = %d\n",ret,*found,*account);
 		if (ret && !*found) {
 			goto Success;
 		}

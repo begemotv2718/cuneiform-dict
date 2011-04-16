@@ -168,7 +168,7 @@ convertOperation vertex subvertexes = IVertex {
                  postfixAccount = postfixAccount vertex,
                  postfixAddr = if postfixAddr vertex == B.singleton 0 
                                 then B.singleton 0 
-                                else encodePostfixAddr $ fromIntegral $ sum $ map B.length [resSubTree, B.singleton $ vertexV vertex, postfixEnding vertex, postfixAccount vertex ],
+                                else encodePostfixAddr $ fromIntegral $ sum $ map B.length [resSubTree, B.singleton $ vertexV vertex, postfixAccount vertex, postfixEnding vertex ],
                  subTree = resSubTree
                  }
                 where 
@@ -176,7 +176,7 @@ convertOperation vertex subvertexes = IVertex {
                    summarize::[IntermediateVertex]->B.ByteString
                    summarize = B.concat . map joinelements
                    joinelements::IntermediateVertex->B.ByteString
-                   joinelements (IVertex a b c d e) = B.concat [B.singleton a,b,c,d,e]
+                   joinelements (IVertex a b c d e) = B.concat [B.singleton a,c,b,d,e] -- swap endings and account
                    --Add vertex operations according to taste
 
 convVertex::DictData->IntermediateVertex
@@ -247,7 +247,7 @@ serializeMaybeTree offset (Just tr) = (offset + (fromIntegral $ B.length $ subtr
                         vertpShift2 x = fromIntegral x .&. 255::Word8
                         subtr::Tree IntermediateVertex->B.ByteString
                         subtr tr = subtr' $ rootLabel tr
-                        subtr' l = B.concat [postfixEnding l, postfixAccount l, postfixAddr l, subTree l]
+                        subtr' l = B.concat [postfixAccount l, postfixEnding l, postfixAddr l, subTree l]
 
 foldSerializeMaybeTree::Int->(Int,B.ByteString,B.ByteString)->Maybe (Tree IntermediateVertex)->(Int,B.ByteString,B.ByteString)
 foldSerializeMaybeTree alphsize (shift,prefixes,body) treevert = (resshift, prefixes `B.append` resprefixes,body `B.append` resbody)

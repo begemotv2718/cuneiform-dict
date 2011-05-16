@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "speldict.h"
+#include <iconv.h>
 
 /*************************************************************************/
 /*              Macros & constants insted of Bit Fields.                 */
@@ -64,6 +65,9 @@
 
 
 
+const uchar abcUpper[]="ÀÁÂÃÄÅ¨ÆÇ²ÉÊËÌÍÎÏĞÑÒÓ¡ÔÕÖ×ØÛÜİŞß'";
+const uchar abcLower[]="àáâãäå¸æç³éêëìíîïğñòó¢ôõö÷øûüışÿ'"; 
+const uchar* trencoding="cp1251"; 
 extern int16_t search(KEYTYPE *word, int16_t *wordsize, 
 		struct dict_state * dict);
 
@@ -124,8 +128,8 @@ int main(int argc, char **argv){
         uchar translate_table[256];
         memset(translate_table,0,256);
         for(i=0; i<dict->abcSize; i++){
-          translate_table[(uchar)(dictHdr->abcLower[i])]=i;
-          translate_table[(uchar)(dictHdr->abcUpper[i])]=i;
+          translate_table[(uchar)(abcLower[i])]=i;
+          translate_table[(uchar)(abcUpper[i])]=i;
         }        
 
         FILE *infile;
@@ -165,8 +169,8 @@ int main(int argc, char **argv){
         ndptr=(uchar*)(dict->root+1);
 
         printf("Abcsize %d\n",dict->abcSize);
-        printf("Alphabet: %s\n",dictHdr->abcLower);
-        printf("Alphabet: %s\n",&(dictHdr->abcLower[1]));
+        printf("Alphabet: %s\n",abcLower);
+        printf("Alphabet: %s\n",abcLower[1]);
         for(i=0;i<dict->abcSize;i++)
         {
           ndptr=(uchar*)(dict->root+offset1((uchar)i,dict));

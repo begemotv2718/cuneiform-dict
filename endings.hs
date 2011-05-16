@@ -10,6 +10,7 @@ import Data.Ord
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import System.Environment
 
 
 data Endian = Little | Big
@@ -104,12 +105,17 @@ russianSmall = ['а' .. 'я']
 russianAlphabet::Alphabet
 russianAlphabet = Map.fromList $ (zip russianBig [0::Int .. 31::Int]) ++ (zip russianSmall [0::Int .. 31::Int])
 
+belarusianBig = "АБВГДЕЁЖЗІЙКЛМНОПРСТУЎФХЦЧШЫЬЭЮЯ"
+belarusianSmall = "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
+belarusianAlphabet::Alphabet
+belarusianAlphabet = Map.fromList $ (zip belarusianBig [0::Int .. 31::Int]) ++ (zip belarusianSmall [0::Int .. 32::Int])
+
 letters:: Alphabet->String -> Maybe [Letter]
 letters abc s = mapM (flip Map.lookup abc) s  
 
 
 
-letters' w = fromMaybe [] $ letters russianAlphabet w
+letters' w = fromMaybe [] $ letters belarusianAlphabet w
 
 parseFile:: String->AllSetS
 parseFile = listArray0 0 . map line2Set .  lines
@@ -183,6 +189,7 @@ listArray0 startindex list = array (startindex, endindex-1) endlist
 
 main = do
      dat<-getContents
+     args<-getArgs
      --let allsets = parseFile dat in
       --print $ packOneBin allsets 6 (indices allsets\\[6])
      --print $ packAllBins $ parseFile dat
@@ -194,4 +201,4 @@ main = do
       in
        (putStrLn $ show (B.length pkdendings)++" "++show (B.length vartable) ++" " ++ show (B.length endaddrtable)) >>
        print packed >>
-       B.writeFile "ending.dat" (pkdendings `B.append` vartable `B.append` endaddrtable)
+       B.writeFile (head args) (pkdendings `B.append` vartable `B.append` endaddrtable)

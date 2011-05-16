@@ -11,9 +11,11 @@ import Control.Monad
 import Data.Tree
 import qualified Data.Foldable as DF 
 import Data.Bits
+import System.Environment
 
-mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
-rusletter lt = Map.findWithDefault '-' lt mapfromrus
+--mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
+mapfrombel = Map.fromList $ zip [0::Int .. 32::Int] "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
+belletter lt = Map.findWithDefault '-' lt mapfrombel
 showhex::Word8->String
 showhex a = hexdigit (shiftR a 4) ++ hexdigit (a .&. 0x0f)
 hexdigit::Word8->String
@@ -31,7 +33,7 @@ showhexstring = concatMap showhex . B.unpack
 type Letter = Int
 data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
 instance Show DictData where
-   show (DictData lt acc term lemma) =  [rusletter lt]  ++ show lemma 
+   show (DictData lt acc term lemma) =  [belletter lt]  ++ show lemma 
 type DictNode = Tree DictData
 {--Properties: Nodes are arranged alphabetically with last letters first  --}
 type DictTree = Forest DictData 
@@ -41,7 +43,7 @@ isEmpty = null
 
 data DictWord = DictWord { st::[Letter], wlemma::Int, freq::Float, freeTerm::Bool}
 instance Show DictWord where
- show (DictWord st wl fr freeterm) = show (map rusletter st) ++ "lemma: "++show wl++" frequency: "++show fr++" terminal: "++show freeterm
+ show (DictWord st wl fr freeterm) = (map belletter st) ++ " lemma: "++show wl++" frequency: "++show fr++" terminal: "++show freeterm
 
 fstletter::DictWord->Letter
 fstletter = head. st 
@@ -56,7 +58,8 @@ removefstletterword::DictWord->DictWord
 removefstletterword a =DictWord { st = tail $ st a, wlemma=wlemma a, freq = freq a, freeTerm = freeTerm a}
 
 sumdata::[DictWord]->Float
-sumdata = sum . map freq 
+--sumdata = sum . map freq 
+sumdata = maximum . map freq
 
 issinglelet::DictWord->Bool
 issinglelet  = isEmpty . tail. st 
@@ -116,7 +119,7 @@ data IntermediateVertex = IVertex {vertexV::Word8, postfixEnding::B.ByteString, 
 instance Show IntermediateVertex where
   show iv =  [ letterfromvv $ vertexV iv] ++ "|"++(showbits $vertexV iv)++" E:" ++ (showhexstring $ postfixEnding iv) ++ " Ac:" 
              ++ (showhexstring $ postfixAccount iv) ++ " Ad:" ++ (showhexstring $ postfixAddr iv) 
-    where letterfromvv v = rusletter $ decodeVertexVLetter v 
+    where letterfromvv v = belletter $ decodeVertexVLetter v 
           showbits::Word8->String
           showbits x = (if testBit x 0 then "c" else "")++(if testBit x 1 then "n" else "") 
 
@@ -127,7 +130,7 @@ showIvData alphsize dat = concatMap showmtuple $ numberList 0 dat
         if isJust tree then
           labelfstltrs num ++ "\n" ++ drawTree ( fmap show $ fromJust tree)++"\n"
         else ""
-     labelfstltrs num = [rusletter fstletter] ++ if sndletter>0 then [rusletter sndletter] else ""
+     labelfstltrs num = [belletter fstletter] ++ if sndletter>0 then [belletter sndletter] else ""
         where 
            fstletter = num `div` (alphsize+1)
            sndletter = (num `mod` (alphsize+1)) -1
@@ -197,7 +200,7 @@ encodePostfixEnding lst = B.concat $ map makelemma lst
           where 
                 makelemma x = B.singleton (settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
                 enter0::Int->Word8
-                enter0 x = shiftL (fromIntegral (shiftR x 5) .&. 31::Word8) 3
+                enter0 x = shiftL (fromIntegral (shiftR x (8)) .&. 31::Word8) 3
                 enter1::Int->Word8
                 enter1 x = fromIntegral x .&. 255::Word8      
 
@@ -287,6 +290,10 @@ russianSmall = ['а' .. 'я']
 russianAlphabet::Alphabet
 russianAlphabet = Map.fromList $ (zip russianBig [0::Int .. 31::Int]) ++ (zip russianSmall [0::Int .. 31::Int])
 
+belarusianBig = "АБВГДЕЁЖЗІЙКЛМНОПРСТУЎФХЦЧШЫЬЭЮЯ"
+belarusianSmall = "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
+belarusianAlphabet = Map.fromList $ (zip belarusianBig [0::Int .. 31::Int]) ++ (zip belarusianSmall [0::Int .. 32::Int])
+
 letters:: Alphabet->String -> Maybe [Letter]
 letters abc s = mapM (flip Map.lookup abc) s  
 
@@ -295,11 +302,11 @@ parsedata::[String]->Maybe DictWord
 parsedata (a:b:c:[]) = do
                       lemma <- parseInt b
                       freq <-parseFloat c
-                      string <- letters russianAlphabet a
+                      string <- letters belarusianAlphabet a
                       return  DictWord { st = string, freq = freq, wlemma = lemma, freeTerm = False}
 parsedata (a:b:[]) = do
                       freq <- parseFloat b
-                      string <-letters russianAlphabet a
+                      string <-letters belarusianAlphabet a
                       return DictWord {st = string, freq =freq, wlemma = -1, freeTerm = True}
 parsedata _ = Nothing
 
@@ -314,18 +321,19 @@ parseFloat::String -> Maybe Float
 parseFloat = maybefst . listToMaybe . readFloat 
 
 parsefile::String->Maybe [DictWord]
-parsefile = (mapM parsedata) . (map words) . lines 
+parsefile = sequence. filter isJust . (map parsedata) . (map words) . lines 
 
 getDictTree::String->DictTree
 getDictTree = fromMaybe [] . (liftM makeTree). parsefile
 main = do
--- content <-BC.getContents
--- print $ ((liftM makeTree) . parsefile) content
- tree<-(liftM getDictTree) $ getContents
- putStrLn $ drawForest $ map (fmap show) tree
- --B.writeFile "./dictree.dat" $ serializeDictTree 32 tree
- putStrLn $ showIvData 32 $ unfoldLevel2 32 tree 
- putStrLn $ showIvData 32 $ convDictStage1 $ unfoldLevel2 32 tree
- putStrLn $ showIvData 32 $ markLastStruct $ convDictStage1 $ unfoldLevel2 32 tree
- putStrLn $ showIvData 32 $ convDictStage2 $ markLastStruct $ convDictStage1 $ unfoldLevel2 32 tree
- B.writeFile "dictree1.dat" $ serializeDictTree 32 tree
+ -- dat <- liftM (filter isJust . (map parsedata). (map words) . lines) $ getContents
+ -- print dat
+
+  args <- getArgs
+  tree<-(liftM getDictTree) $ getContents
+-- putStrLn $ drawForest $ map (fmap show) tree
+--putStrLn $ showIvData 33 $ unfoldLevel2 33 tree 
+--putStrLn $ showIvData 33 $ convDictStage1 $ unfoldLevel2 33 tree
+--putStrLn $ showIvData 33 $ markLastStruct $ convDictStage1 $ unfoldLevel2 33 tree
+--putStrLn $ showIvData 33 $ convDictStage2 $ markLastStruct $ convDictStage1 $ unfoldLevel2 33 tree
+  B.writeFile (head args)  $ serializeDictTree 33 tree

@@ -1,0 +1,21 @@
+This is dictionary generating code for cuneiform.
+
+The main parts of the dictionary are the following:
+header
+tree
+endings list
+
+writeheader.c generates header
+speltree.hs   generates tree
+endings.hs    generates endings list
+
+Each of these three file can be compiled in a default way (gcc -o writeheader, ghc )
+
+Steps to produce dictionary:
+1) prepare table of word stems in the format:
+<stem> <frequency> <index in ending table>
+2) prepare table of word endings (each line should contain a list of the separate nest for endings).
+3) run "speltree" on stem table. Collect tree length from the output
+4) run "endings" on the endings table. Note the length of the components reported by this program.
+5) run "writeheader" feeding it table length from speltree and the three lengthes of the ending sections from the output of endings
+6) concatenate output files

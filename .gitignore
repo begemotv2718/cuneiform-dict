@@ -8,6 +8,7 @@
 *.o
 cuneiform-out.txt
 *.dat
-readspeldict
-speltree
-endings
+*readspeldict
+*speltree
+*endings
+.gdb*

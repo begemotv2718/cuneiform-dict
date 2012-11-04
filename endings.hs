@@ -13,6 +13,7 @@ import Data.Maybe
 import System.Environment
 
 
+
 data Endian = Little | Big
 
 padLeft::Int->Word8->ByteString->ByteString
@@ -57,7 +58,7 @@ ordListIndexes sublist list = snd3 (foldl' iterateindexes (0,[],sublist) list)
         snd3 (a,b,c) = b
 
 setBits::(Integral a, Bits a) =>a->[Int]->a
-setBits x bits = foldl' setBit x bits 
+setBits = foldl' setBit 
 
 mkEndingPackTable::AllSetS->[[Int]]->(ByteString,ByteString)
 mkEndingPackTable sts packed =  fst $ mapAccumL  localpackendings (B.empty, B.empty) packed 
@@ -70,7 +71,7 @@ packEndingListInt::AllSetS->[Int]->ByteString
 packEndingListInt sts = packEndingSetS . Set.unions . map ((!) sts)
 
 packEndingSetS::SetS->ByteString
-packEndingSetS = B.concat . map packEnding . Set.toAscList
+packEndingSetS = (B.concat . map packEnding) . Set.toAscList
 
 packEnding::Letters->ByteString
 packEnding = markend. B.pack. map fromIntegral
@@ -111,7 +112,7 @@ belarusianAlphabet::Alphabet
 belarusianAlphabet = Map.fromList $ (zip belarusianBig [0::Int .. 31::Int]) ++ (zip belarusianSmall [0::Int .. 32::Int])
 
 letters:: Alphabet->String -> Maybe [Letter]
-letters abc s = mapM (flip Map.lookup abc) s  
+letters abc = mapM (flip Map.lookup abc)  
 
 
 

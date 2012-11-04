@@ -19,3 +19,7 @@ Steps to produce dictionary:
 4) run "endings" on the endings table. Note the length of the components reported by this program.
 5) run "writeheader" feeding it table length from speltree and the three lengthes of the ending sections from the output of endings
 6) concatenate output files
+
+
+endings usage: cat endingfile | endings <outputfile1>
+speltree usage: cat stemfile | speltree <outputfile1>

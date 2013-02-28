@@ -23,3 +23,32 @@ Steps to produce dictionary:
 
 endings usage: cat endingfile | endings <outputfile1>
 speltree usage: cat stemfile | speltree <outputfile1>
+
+
+
+
+example input files (note that for english language this is slightly overcomplicated, since it is not 
+a flective language like russian)
+
+We have two word nests
+calm calming calmed  
+create created creating creation creative 
+
+We should assign some kind of frequencies to these word nests. The frequencies for the most frequent words should be close to 7 and the frequencies of the least used words should be close to 1. I think that the simple logarithmic measure of the word frequency is ok, something like 1+6*log(freq)/log(maxfreq) can do, but this is not yet settled for me.
+
+Let's assume that we assigned frequency 5.2 to the word nest (calm) and 6.1 to the word nest (create).
+
+The resulting endings list
+----------------
+e ed ing ion ive
+ed ing 
+----------------
+The resulting stem file
+
+-----------------
+calm 5.2
+calm 1 5.2
+creat 0 6.1
+---------------------
+Note that we repeated the word calm twice, this indicates that the word stem without ending is a valid word by itself. For this type of word we do not write ending file line. The line 'calm 1 5.2' means 'use stem calm and suffix table from line 1 of suffix file, and assign frequency 5.2 to it'. Correspondingly 'creat 0 6.1' means 'use stem creat with suffix table from line 0 of suffix file, assign frequency 6.1 to it'. 
+

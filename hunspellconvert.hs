@@ -13,4 +13,8 @@ Data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } 
 Data WordNest = WordNest { stem:: [Letter], suffixes :: [[Letter]] } 
 Data AnnotatedNest = AnnotatedNest { wordnest :: WordNest, frequ :: Float }
 
+Data STreePlus a b = Node [ EdgePlus a b] | Leaf b
+Data EdgePlus a b = (Label a, StreePlus a b)
 
+Data AffixTree = STreePlus Letter ReplRule -- we wand some kind of  
+Data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] }

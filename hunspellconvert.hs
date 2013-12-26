@@ -5,6 +5,7 @@
 import Data.Array.IArray
 import Data.List
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Maybe
 
 type Letter = Int
@@ -21,22 +22,42 @@ data AnnotatedNest = AnnotatedNest { wordnest :: WordNest, frequ :: Float }
 --Data STreePlus a b = Node [ EdgePlus a b] | Leaf b
 --Data EdgePlus a b = (Label a, StreePlus a b)
 
-type SuffixMap = M.Map LetterWord ReplRule -- we wand some kind of  
+type SuffixMap = M.Map LetterWord [ReplRule] -- we wand some kind of  
 
 mkSuffixMap:: AffRule->Maybe SuffixMap
-mkSuffixMap (Sfx r m) = Just (M.fromList $ map (\x->(x,r)) $ allcombinations m)    
+mkSuffixMap (Sfx r m) = Just (M.fromList $ map (\x->(x,[r])) $ allcombinations m)    
 mkSuffixMap _ = Nothing
 mkSuffixMaps :: [AffRule]->SuffixMap
-mkSuffixMaps = M.unions . map fromJust . filter isJust . map mkSuffixMap   
+mkSuffixMaps = M.unionsWith (++) . mapMaybe mkSuffixMap   
 
 type SfxList = Array LetterIdx SuffixMap
 mkSfxList :: AffixList->SfxList
 mkSfxList = amap mkSuffixMaps 
 
-applyrule::LetterWord->ReplRule->Maybe LetterWord
-applyrule w r = do
+joinAllSuffixMaps::SfxList->[LetterIdx]->SuffixMap
+joinAllSuffixMaps slst idxs = M.unionsWith (++) $ map (slst ! ) idxs 
+
+getRules::SuffixMap->LetterWord->[ReplRule]
+getRules m w = case dropWhile isNothing $ map (`M.lookup` m ) $ tails w 
+                      of [] -> []
+                         Just lst:lsts -> lst
+                         _ -> []
+
+applysfxrule::LetterWord->ReplRule->Maybe LetterWord
+applysfxrule w r = do
    stripped <- stripPrefix (reverse $ matchGroup r) $ reverse w
    return ( reverse stripped ++  replacementGroup r)
+
+mkWordNest :: SfxList->DicFileRec->WordNest
+mkWordNest slst rec = WordNest stm sfxs
+              where 
+               (stm, sfxs) = commonPrefix forms 
+               forms = uniq $ baseform rec:mapMaybe (applysfxrule (baseform rec)) rules
+               rules = getRules sfxmap $ baseform rec 
+               sfxmap = joinAllSuffixMaps slst $ modifiers rec 
+
+
+
 
 --allcombinations generates all possible path through list of lists
 allcombinations :: [[a]]->[[a]]
@@ -48,6 +69,9 @@ allcombinations (lstx:lstxs) = concatMap (\x->map (x:) $ allcombinations lstxs) 
 commonPrefix :: Eq a=>[[a]]->([a],[[a]])
 commonPrefix [] = ([],[])
 commonPrefix lst  | any null lst  = ([],lst)
-                  | not $ all (== (head $ head lst)) $ map head lst = ([],lst)
-                  | otherwise = ((head $ head lst):prefix, suffixes) 
+                  | not $ all (== head ( head lst)) $ map head lst = ([],lst)
+                  | otherwise = ( head  ( head lst):prefix, suffixes) 
                                  where (prefix, suffixes) = commonPrefix $ map tail lst
+
+uniq:: Ord a => [a]->[a]
+uniq = S.toList . S.fromList

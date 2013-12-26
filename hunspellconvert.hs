@@ -3,6 +3,7 @@
 --Likely we will have the following intermediate form [(Stem, [Suffix])], and [(Stem,freq,[Suffix])]
 --We will need to convert [(Stem,freq,[Suffix])] into [(Stem,freq,SuffixIndex)]+Array SuffixIndex SuffixSet
 import Data.Array.IArray
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -32,8 +33,21 @@ type SfxList = Array LetterIdx SuffixMap
 mkSfxList :: AffixList->SfxList
 mkSfxList = amap mkSuffixMaps 
 
+applyrule::LetterWord->ReplRule->Maybe LetterWord
+applyrule w r = do
+   stripped <- stripPrefix (reverse $ matchGroup r) $ reverse w
+   return ( reverse stripped ++  replacementGroup r)
+
+--allcombinations generates all possible path through list of lists
 allcombinations :: [[a]]->[[a]]
 allcombinations [] = []
 allcombinations ([]:xss) = allcombinations xss
 allcombinations (lst:[]) = map (:[]) lst
 allcombinations (lstx:lstxs) = concatMap (\x->map (x:) $ allcombinations lstxs) lstx
+
+commonPrefix :: Eq a=>[[a]]->([a],[[a]])
+commonPrefix [] = ([],[])
+commonPrefix lst  | any null lst  = ([],lst)
+                  | not $ all (== (head $ head lst)) $ map head lst = ([],lst)
+                  | otherwise = ((head $ head lst):prefix, suffixes) 
+                                 where (prefix, suffixes) = commonPrefix $ map tail lst

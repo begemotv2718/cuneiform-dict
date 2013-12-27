@@ -16,8 +16,8 @@ data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] }
 type RegexRule = [[Letter]]
 type AffixList = Array LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
-data WordNest = WordNest { stem:: [Letter], suffixes :: [[Letter]] } 
-data AnnotatedNest = AnnotatedNest { wordnest :: WordNest, frequ :: Float }
+data WordNest = WordNest { stem:: [Letter], suffixes :: SuffixSet } 
+type SuffixSet = S.Set [Letter]
 
 --Data STreePlus a b = Node [ EdgePlus a b] | Leaf b
 --Data EdgePlus a b = (Label a, StreePlus a b)
@@ -49,12 +49,23 @@ applysfxrule w r = do
    return ( reverse stripped ++  replacementGroup r)
 
 mkWordNest :: SfxList->DicFileRec->WordNest
-mkWordNest slst rec = WordNest stm sfxs
+mkWordNest slst rec = WordNest stm (S.fromList sfxs)
               where 
                (stm, sfxs) = commonPrefix forms 
                forms = uniq $ baseform rec:mapMaybe (applysfxrule (baseform rec)) rules
                rules = getRules sfxmap $ baseform rec 
                sfxmap = joinAllSuffixMaps slst $ modifiers rec 
+
+
+
+data Annotation = Annotation { wordsuffixes::SuffixSet, wordfreq::float}
+instance Monoid Annotation where
+  mempty = Annotation  (S.empty:: S.Set [Letter]) 0.0  
+  Annotation a1 b1 `mappend` Annotation a2 b2 = Annotation (mappend a1 a2) (mappend b1 b2) 
+
+type StemSuffixMap = M.Map LetterWord Annotation
+buildStemSuffixMap:: [WordNest]->StemSuffixMap
+buildStemSuffixMap wds = M.unionsWith mappend $ map (\x->M.singleton (stem x) (Annotation (suffixes x) 0.0)) wds 
 
 
 

@@ -67,7 +67,7 @@ type StemSuffixMap = M.Map LetterWord Annotation
 buildStemSuffixMap:: [WordNest]->StemSuffixMap
 buildStemSuffixMap wds = M.unionsWith mappend $ map (\x->M.singleton (stem x) (Annotation (suffixes x) 0.0)) wds 
 
-
+updateStemSuffixMap::StemSuffixMap->[([LetterWord,Float)]->StemSuffixMap
 
 
 --allcombinations generates all possible path through list of lists

@@ -7,6 +7,7 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Maybe
+import Data.Monoid
 
 type Letter = Int
 type LetterIdx = Char
@@ -58,7 +59,7 @@ mkWordNest slst rec = WordNest stm (S.fromList sfxs)
 
 
 
-data Annotation = Annotation { wordsuffixes::SuffixSet, wordfreq::float}
+data Annotation = Annotation { wordsuffixes::SuffixSet, wordfreq::Float}
 instance Monoid Annotation where
   mempty = Annotation  (S.empty:: S.Set [Letter]) 0.0  
   Annotation a1 b1 `mappend` Annotation a2 b2 = Annotation (mappend a1 a2) (mappend b1 b2) 
@@ -67,7 +68,15 @@ type StemSuffixMap = M.Map LetterWord Annotation
 buildStemSuffixMap:: [WordNest]->StemSuffixMap
 buildStemSuffixMap wds = M.unionsWith mappend $ map (\x->M.singleton (stem x) (Annotation (suffixes x) 0.0)) wds 
 
-updateStemSuffixMap::StemSuffixMap->[([LetterWord,Float)]->StemSuffixMap
+matchStemSuffixMap::StemSuffixMap->LetterWord->LetterWord->Bool
+matchStemSuffixMap m stem suf = case M.lookup stem m  of
+                                       Just (Annotation a f) -> S.member suf a
+                                       Nothing -> False
+updateStemSuffixMap::StemSuffixMap->(LetterWord,Float)->StemSuffixMap
+updateStemSuffixMap mp (wrd,frq) = case filter (uncurry $ matchStemSuffixMap mp) $ zip (inits wrd) (tails wrd) of
+                                        [] -> mp
+                                        (stem,suf):xs -> M.adjust (\x->Annotation {wordsuffixes = wordsuffixes x, wordfreq = wordfreq x + frq}) stem mp
+
 
 
 --allcombinations generates all possible path through list of lists

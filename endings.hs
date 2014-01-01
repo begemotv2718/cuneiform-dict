@@ -10,22 +10,13 @@ import Data.Ord
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import CommonType
 import System.Environment
 
 
 
 data Endian = Little | Big
 
-padLeft::Int->Word8->ByteString->ByteString
-padLeft targlen pad str 
-                        | targlen<= len = str
-                        | otherwise = B.append (B.replicate (targlen-len) pad) str
-      where len = B.length str
-padRight::Int->Word8->ByteString->ByteString
-padRight targlen pad str 
-                        | targlen<= len = str
-                        | otherwise = B.append str (B.replicate (targlen-len) pad)
-      where len = B.length str
 lowestByte::(Integral a, Bits a) => a->(Word8,a)
 lowestByte x= ((fromIntegral x) .&. (255::Word8), shiftR x 8)
 
@@ -100,23 +91,9 @@ mkVarTableBS::AllSetS->[[Int]]->ByteString
 mkVarTableBS sts packed = B.concat $ map (encodeVarTable Little) $ mkVarTable sts packed 
 
 ----------------------------------------------------------
-type Alphabet = Map Char Int
-russianBig = ['А' .. 'Я' ] 
-russianSmall = ['а' .. 'я']
-russianAlphabet::Alphabet
-russianAlphabet = Map.fromList $ (zip russianBig [0::Int .. 31::Int]) ++ (zip russianSmall [0::Int .. 31::Int])
-
-belarusianBig = "АБВГДЕЁЖЗІЙКЛМНОПРСТУЎФХЦЧШЫЬЭЮЯ"
-belarusianSmall = "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
-belarusianAlphabet::Alphabet
-belarusianAlphabet = Map.fromList $ (zip belarusianBig [0::Int .. 31::Int]) ++ (zip belarusianSmall [0::Int .. 32::Int])
-
-letters:: Alphabet->String -> Maybe [Letter]
-letters abc = mapM (flip Map.lookup abc)  
 
 
 
-letters' w = fromMaybe [] $ letters belarusianAlphabet w
 
 parseFile:: String->AllSetS
 parseFile = listArray0 0 . map line2Set .  lines
@@ -125,12 +102,6 @@ parseFile = listArray0 0 . map line2Set .  lines
 parseFile0 = map line2Set .  lines
    where line2Set = Set.fromList .map letters' .words
 -------------------------------------------------------------
-type Letter = Int
-type Letters = [Letter]
-
-type SetS = Set Letters
-
-type AllSetS = Array Int SetS
 
 findMaxSet::AllSetS->[Int]->Int
 findMaxSet sts = maximumBy $ comparing (size.(!) sts) 

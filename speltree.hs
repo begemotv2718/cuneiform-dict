@@ -5,35 +5,16 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
 import Data.Word
-import Maybe
+import Data.Maybe
 import Numeric
 import Control.Monad
 import Data.Tree
 import qualified Data.Foldable as DF 
 import Data.Bits
 import System.Environment
+import CommonType
 
 --mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
-mapfrombel = Map.fromList $ zip [0::Int .. 32::Int] "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
-belletter lt = Map.findWithDefault '-' lt mapfrombel
-showhex::Word8->String
-showhex a = hexdigit (shiftR a 4) ++ hexdigit (a .&. 0x0f)
-hexdigit::Word8->String
-hexdigit a 
-          | a<10 = show a
-          | (a==10) = "a"
-          | (a==11) = "b"
-          | (a==12) = "c"
-          | (a==13) = "d"
-          | (a==14) = "e"
-          | (a==15) = "f"            
-showhexstring::B.ByteString->String
-showhexstring = concatMap showhex . B.unpack
-
-type Letter = Int
-data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
-instance Show DictData where
-   show (DictData lt acc term lemma) =  [belletter lt]  ++ show lemma 
 type DictNode = Tree DictData
 {--Properties: Nodes are arranged alphabetically with last letters first  --}
 type DictTree = Forest DictData 
@@ -41,9 +22,9 @@ type DictTree = Forest DictData
 isEmpty::[Letter] -> Bool
 isEmpty = null
 
-data DictWord = DictWord { st::[Letter], wlemma::Int, freq::Float, freeTerm::Bool}
-instance Show DictWord where
- show (DictWord st wl fr freeterm) = (map belletter st) ++ " lemma: "++show wl++" frequency: "++show fr++" terminal: "++show freeterm
+data DictData = DictData { letter:: Letter, account::Float, terminal::Bool, lemma::[Int]} deriving (Eq)
+instance Show DictData where
+   show (DictData lt acc term lemma) =  [belletter lt]  ++ show lemma 
 
 fstletter::DictWord->Letter
 fstletter = head. st 
@@ -65,7 +46,7 @@ issinglelet::DictWord->Bool
 issinglelet  = isEmpty . tail. st 
 
 findterminal::[DictWord]->Bool
-findterminal lst = or $ map freeTerm lst  
+findterminal = any freeTerm  
 
 getlemmas::[DictWord]->[Int]
 getlemmas = map wlemma . filter (not.freeTerm) . filter issinglelet
@@ -200,7 +181,7 @@ encodePostfixEnding lst = B.concat $ map makelemma lst
           where 
                 makelemma x = B.singleton (settail.setcont $ enter0 x) `B.append` (B.singleton $ enter1 x)
                 enter0::Int->Word8
-                enter0 x = shiftL (fromIntegral (shiftR x (8)) .&. 31::Word8) 3
+                enter0 x = shiftL (fromIntegral (shiftR x 8) .&. 31::Word8) 3
                 enter1::Int->Word8
                 enter1 x = fromIntegral x .&. 255::Word8      
 
@@ -261,7 +242,7 @@ type TestTuples = [TestTuple]
 data TestTuple = TT { pref::B.ByteString, suf::B.ByteString}
 instance Show TestTuple
   where 
-    show (TT a b) = "("++(concat $ map showhex $ B.unpack a) ++","++(concat $ map showhex $ B.unpack b)++")"
+    show (TT a b) = "("++(concatMap showhex $ B.unpack a) ++","++(concatMap showhex $ B.unpack b)++")"
 
 foldSerializeMaybeTreeTest::Int->(Int,TestTuples)->Maybe (Tree IntermediateVertex)->(Int,TestTuples)
 foldSerializeMaybeTreeTest alphsize (shift,lst) treevert = (resshift, lst++[TT resprefixes resbody ])
@@ -284,18 +265,6 @@ serializeDictTreeTest alphsize tree = snd $ foldl' (foldSerializeMaybeTreeTest a
                                     
 
 
-type Alphabet = Map Char Int
-russianBig = ['А' .. 'Я' ] 
-russianSmall = ['а' .. 'я']
-russianAlphabet::Alphabet
-russianAlphabet = Map.fromList $ (zip russianBig [0::Int .. 31::Int]) ++ (zip russianSmall [0::Int .. 31::Int])
-
-belarusianBig = "АБВГДЕЁЖЗІЙКЛМНОПРСТУЎФХЦЧШЫЬЭЮЯ"
-belarusianSmall = "абвгдеёжзійклмнопрстуўфхцчшыьэюя'"
-belarusianAlphabet = Map.fromList $ (zip belarusianBig [0::Int .. 31::Int]) ++ (zip belarusianSmall [0::Int .. 32::Int])
-
-letters:: Alphabet->String -> Maybe [Letter]
-letters abc s = mapM (flip Map.lookup abc) s  
 
 --Convert triple word lemma freq into data
 parsedata::[String]->Maybe DictWord

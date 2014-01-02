@@ -8,8 +8,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Maybe
 import Data.Monoid
+import CommonType
+import Data.Tuple
 
-type Letter = Int
 type LetterIdx = Char
 type LetterWord = [Letter]
 data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff
@@ -62,7 +63,7 @@ mkWordNest slst rec = WordNest stm (S.fromList sfxs)
 data Annotation = Annotation { wordsuffixes::SuffixSet, wordfreq::Float}
 instance Monoid Annotation where
   mempty = Annotation  (S.empty:: S.Set [Letter]) 0.0  
-  Annotation a1 b1 `mappend` Annotation a2 b2 = Annotation (mappend a1 a2) (mappend b1 b2) 
+  Annotation a1 b1 `mappend` Annotation a2 b2 = Annotation (mappend a1 a2) (b1+b2) 
 
 type StemSuffixMap = M.Map LetterWord Annotation
 buildStemSuffixMap:: [WordNest]->StemSuffixMap
@@ -77,7 +78,31 @@ updateStemSuffixMap mp (wrd,frq) = case filter (uncurry $ matchStemSuffixMap mp)
                                         [] -> mp
                                         (stem,suf):xs -> M.adjust (\x->Annotation {wordsuffixes = wordsuffixes x, wordfreq = wordfreq x + frq}) stem mp
 
+makefreqs:: StemSuffixMap->[(LetterWord,Float)]->StemSuffixMap
+makefreqs = foldl' updateStemSuffixMap
 
+removeEmptySuf::SuffixSet->SuffixSet
+removeEmptySuf = S.delete []
+hasEmptySuf:: SuffixSet->Bool
+hasEmptySuf  = S.member [] 
+enumerateSuffixSets::StemSuffixMap->[(Int,SuffixSet)]
+enumerateSuffixSets m = zip [0::Int ..] $ map wordsuffixes $ M.elems m 
+
+suffixLookupTable::StemSuffixMap->M.Map SuffixSet Int
+suffixLookupTable  = M.fromList. map swap. enumerateSuffixSets
+
+makeSuffixSets:: StemSuffixMap->AllSetS 
+makeSuffixSets m = amap removeEmptySuf $ array (0, length enumeration -1) enumeration where  enumeration = enumerateSuffixSets m
+
+makeDictWords:: StemSuffixMap->[DictWord]
+makeDictWords m = map convertpair $ M.toAscList m
+   where
+     lookuptbl = suffixLookupTable m
+     convertpair::([Letter],Annotation)->DictWord
+     convertpair (l, a) = DictWord { st = l, wlemma = checkwlemma $ wordsuffixes a, freq = wordfreq a, freeTerm = hasEmptySuf $ wordsuffixes a}
+     checkwlemma:: SuffixSet->Int
+     checkwlemma s | hasEmptySuf s && S.size s == 1 = -1
+                   | otherwise = fromJust $ M.lookup s lookuptbl    
 
 --allcombinations generates all possible path through list of lists
 allcombinations :: [[a]]->[[a]]

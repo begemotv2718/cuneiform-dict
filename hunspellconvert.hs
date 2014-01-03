@@ -11,6 +11,10 @@ import Data.Monoid
 import CommonType
 import Data.Tuple
 import Data.Char
+import Text.Parsec.Char
+import Text.Parsec.String
+import Text.Parsec.Combinator
+import Text.Parsec.Prim
 
 type LetterIdx = Char
 type LetterWord = [Letter]
@@ -140,4 +144,20 @@ parseDicFileEntry a s | null strhead = Nothing
 parseAffFile:: String->AffixList
 parseAffFile s = array ('A','z') . mapMaybe parseAffString . lines
 parseAffString::String->Maybe AffRule
+
+
+---affRule parser
+pAffString:: Alphabet->Parser Maybe (Char,AffRule)
+pAffString a = try (pPfx a) <|> try (pSfx a)
+
+pPfx::Alphabet -> Parser Maybe (Char,AffRule)
+pPfx a = do 
+       string "PFX"
+       spaces
+       lett<-oneOf ['A'..'z']
+       spaces
+       oneOf "YN"
+       spaces
+       
+        
 

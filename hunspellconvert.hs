@@ -137,5 +137,7 @@ parseDicFileEntry a s | null strhead = Nothing
       (strhead, rest) = break (=='/') s
       keys = dropWhile (=='/') rest
 
---parseAffFile:: String->AffixList
---array ('A','z')
+parseAffFile:: String->AffixList
+parseAffFile s = array ('A','z') . mapMaybe parseAffString . lines
+parseAffString::String->Maybe AffRule
+

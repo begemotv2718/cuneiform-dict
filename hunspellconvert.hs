@@ -10,6 +10,7 @@ import Data.Maybe
 import Data.Monoid
 import CommonType
 import Data.Tuple
+import Data.Char
 
 type LetterIdx = Char
 type LetterWord = [Letter]
@@ -120,3 +121,21 @@ commonPrefix lst  | any null lst  = ([],lst)
 
 uniq:: Ord a => [a]->[a]
 uniq = S.toList . S.fromList
+
+
+------------------
+
+parseDicFile:: Alphabet->String->[DicFileRec]
+parseDicFile a = mapMaybe (parseDicFileEntry a) . lines
+parseDicFileEntry::Alphabet->String->Maybe DicFileRec
+parseDicFileEntry a s | null strhead = Nothing
+                      | isDigit $ head strhead = Nothing
+                      | (== '#') $ head strhead = Nothing
+                      | isNothing (letters a strhead)  = Nothing
+                      | otherwise = Just $ DicFileRec (fromJust $ letters a strhead) keys 
+     where
+      (strhead, rest) = break (=='/') s
+      keys = dropWhile (=='/') rest
+
+--parseAffFile:: String->AffixList
+--array ('A','z')

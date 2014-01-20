@@ -7,18 +7,35 @@ import CommonType
 import Data.Maybe
 import Data.Map as M hiding (map, mapMaybe)
 import Data.List
+import Data.Function
 ----for main----
 import System.Environment
 import Control.Monad
 
-data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff deriving Show
+data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff 
 
-data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] } deriving Show
+data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] } 
+
+instance Show ReplRule where
+   show r = "< match: "++map belletter (matchGroup r)++" repl: "++map belletter (replacementGroup r)++ ">"
+
+showmatch  = concatMap (wrapbr . map belletter)
+wrapbr s = "[" ++ s ++ "]"
+
+instance Show AffRule where
+   show (Pfx rule match) = "Pfx { "++show rule++", "++showmatch match ++"} "
+   show (Sfx rule match) = "Sfx { "++show rule++", "++showmatch match ++"} "
+   show OtherAff = "OtherAff"
 type RegexRule = [[Letter]]
 
 type LetterIdx = Char
 type LetterWord = [Letter]
 
+
+groupLetterIdx:: [(LetterIdx,AffRule)]->[(LetterIdx,[AffRule])]
+groupLetterIdx = map (headfst.unzip) . groupBy ( (==) `on` fst) . sortBy (compare `on` fst)
+              where
+                 headfst (a,b) = (head a, b)
 getLines :: Alphabet->String->[(LetterIdx,AffRule)]
 either2Maybe :: Either b a -> Maybe a
 either2Maybe (Right a) = Just a
@@ -83,7 +100,7 @@ main = do
    args <- getArgs
    unless (length args == 1) $ error "Usage readafffile <file>"
    content <- readFile $ head args
-   print $ getLines belarusianAlphabet content
+   print $ groupLetterIdx $ getLines belarusianAlphabet content
 
  
                

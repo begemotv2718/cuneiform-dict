@@ -53,3 +53,21 @@ letters abc = mapM (`Map.lookup` abc)
 
 letters' w = fromMaybe [] $ letters belarusianAlphabet w
 
+data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff 
+
+data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] } 
+
+instance Show ReplRule where
+   show r = "< match: "++map belletter (matchGroup r)++" repl: "++map belletter (replacementGroup r)++ ">"
+
+showmatch  = concatMap (wrapbr . map belletter)
+wrapbr s = "[" ++ s ++ "]"
+
+instance Show AffRule where
+   show (Pfx rule match) = "Pfx { "++show rule++", "++showmatch match ++"} "
+   show (Sfx rule match) = "Sfx { "++show rule++", "++showmatch match ++"} "
+   show OtherAff = "OtherAff"
+type RegexRule = [[Letter]]
+
+type LetterIdx = Char
+type LetterWord = [Letter]

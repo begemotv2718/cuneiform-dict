@@ -15,16 +15,20 @@ import Text.Parsec.Char
 import Text.Parsec.String
 import Text.Parsec.Combinator
 import Text.Parsec.Prim
+import ParseAffFile
+import Control.Monad
+import System.Environment
 
-type LetterIdx = Char
-type LetterWord = [Letter]
-data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff
-data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] }
-type RegexRule = [[Letter]]
 type AffixList = Array LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
+instance Show DicFileRec where
+    show (DicFileRec b m) = "DicFileRec { "++ (map belletter b) ++ show m ++ "}"
+
 data WordNest = WordNest { stem:: [Letter], suffixes :: SuffixSet } 
+instance Show WordNest where 
+  show (WordNest stem suf) = "WordNest{ "++map belletter stem ++ "; "++ showsuffixset suf ++"}"
 type SuffixSet = S.Set [Letter]
+showsuffixset s = concat $ intersperse ", " $ map (map belletter) (S.toAscList s) 
 
 --Data STreePlus a b = Node [ EdgePlus a b] | Leaf b
 --Data EdgePlus a b = (Label a, StreePlus a b)
@@ -66,6 +70,8 @@ mkWordNest slst rec = WordNest stm (S.fromList sfxs)
 
 
 data Annotation = Annotation { wordsuffixes::SuffixSet, wordfreq::Float}
+instance Show Annotation where
+   show (Annotation s f) = "Annotation { " ++ showsuffixset s ++ " | " ++ show f ++"}"
 instance Monoid Annotation where
   mempty = Annotation  (S.empty:: S.Set [Letter]) 0.0  
   Annotation a1 b1 `mappend` Annotation a2 b2 = Annotation (mappend a1 a2) (b1+b2) 
@@ -132,15 +138,31 @@ uniq = S.toList . S.fromList
 parseDicFile:: Alphabet->String->[DicFileRec]
 parseDicFile a = mapMaybe (parseDicFileEntry a) . lines
 parseDicFileEntry::Alphabet->String->Maybe DicFileRec
-parseDicFileEntry a s | null s = Nothing
-                      | isDigit $ head s = Nothing
-                      | (== '#') $ head s = Nothing
-                      | isNothing (letters a s)  = Nothing
-                      | otherwise = Just $ DicFileRec (fromJust $ letters a s) keys 
+parseDicFileEntry a s | null strhead = Nothing
+                      | isDigit $ head strhead = Nothing
+                      | (== '#') $ head strhead = Nothing
+                      | isNothing (letters a strhead)  = Nothing
+                      | otherwise = Just $ DicFileRec (fromJust $ letters a strhead) keys 
      where
       (strhead, rest) = break (=='/') s
       keys = dropWhile (=='/') rest
 
-       
+---------
+parseAffFile:: Alphabet->String->AffixList       
+parseAffFile a s = array ('A','z') $ groupLetterIdx $ getLines a s
+
+main = do 
+   args <- getArgs
+   unless (length args == 2) $ error "Usage hunspelconvert <dicfile> <afffile>"
+   diccontent <- readFile $ head args
+   affcontent <- readFile $ head (tail args)
+   let sfxlist = mkSfxList $ parseAffFile belarusianAlphabet affcontent
+   print (sfxlist ! 'q')
+   --let y = parseDicFile belarusianAlphabet diccontent
+   let z = map (mkWordNest sfxlist) $ parseDicFile belarusianAlphabet diccontent 
+   print z
+   print "-------------------------------------------------------------------------"
+   print $ buildStemSuffixMap z
+   
         
 

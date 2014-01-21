@@ -1,35 +1,19 @@
+module ParseAffFile where
+
 import Text.Parsec.Char
 import Text.Parsec.String
 import Text.Parsec.Combinator
 import Text.Parsec.Prim
-import Text.Parsec.Token
+--import Text.Parsec.Token
 import CommonType
 import Data.Maybe
 import Data.Map as M hiding (map, mapMaybe)
 import Data.List
 import Data.Function
 ----for main----
-import System.Environment
-import Control.Monad
+--import System.Environment
+--import Control.Monad
 
-data AffRule = Pfx { rule:: ReplRule, match :: RegexRule } | Sfx { rule:: ReplRule, match :: RegexRule  } | OtherAff 
-
-data ReplRule = ReplRule { matchGroup:: [Letter], replacementGroup:: [Letter] } 
-
-instance Show ReplRule where
-   show r = "< match: "++map belletter (matchGroup r)++" repl: "++map belletter (replacementGroup r)++ ">"
-
-showmatch  = concatMap (wrapbr . map belletter)
-wrapbr s = "[" ++ s ++ "]"
-
-instance Show AffRule where
-   show (Pfx rule match) = "Pfx { "++show rule++", "++showmatch match ++"} "
-   show (Sfx rule match) = "Sfx { "++show rule++", "++showmatch match ++"} "
-   show OtherAff = "OtherAff"
-type RegexRule = [[Letter]]
-
-type LetterIdx = Char
-type LetterWord = [Letter]
 
 
 groupLetterIdx:: [(LetterIdx,AffRule)]->[(LetterIdx,[AffRule])]
@@ -96,11 +80,6 @@ pRegexDot alph = do
                         uniq a = (map head . group .sort) a
                      
 
-main = do 
-   args <- getArgs
-   unless (length args == 1) $ error "Usage readafffile <file>"
-   content <- readFile $ head args
-   print $ groupLetterIdx $ getLines belarusianAlphabet content
 
  
                

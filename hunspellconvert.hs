@@ -132,32 +132,15 @@ uniq = S.toList . S.fromList
 parseDicFile:: Alphabet->String->[DicFileRec]
 parseDicFile a = mapMaybe (parseDicFileEntry a) . lines
 parseDicFileEntry::Alphabet->String->Maybe DicFileRec
-parseDicFileEntry a s | null strhead = Nothing
-                      | isDigit $ head strhead = Nothing
-                      | (== '#') $ head strhead = Nothing
-                      | isNothing (letters a strhead)  = Nothing
-                      | otherwise = Just $ DicFileRec (fromJust $ letters a strhead) keys 
+parseDicFileEntry a s | null s = Nothing
+                      | isDigit $ head s = Nothing
+                      | (== '#') $ head s = Nothing
+                      | isNothing (letters a s)  = Nothing
+                      | otherwise = Just $ DicFileRec (fromJust $ letters a s) keys 
      where
       (strhead, rest) = break (=='/') s
       keys = dropWhile (=='/') rest
 
-parseAffFile:: String->AffixList
-parseAffFile s = array ('A','z') . mapMaybe parseAffString . lines
-parseAffString::String->Maybe AffRule
-
-
----affRule parser
-pAffString:: Alphabet->Parser Maybe (Char,AffRule)
-pAffString a = try (pPfx a) <|> try (pSfx a)
-
-pPfx::Alphabet -> Parser Maybe (Char,AffRule)
-pPfx a = do 
-       string "PFX"
-       spaces
-       lett<-oneOf ['A'..'z']
-       spaces
-       oneOf "YN"
-       spaces
        
         
 

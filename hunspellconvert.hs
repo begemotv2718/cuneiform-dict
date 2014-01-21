@@ -19,14 +19,14 @@ import ParseAffFile
 import Control.Monad
 import System.Environment
 
-type AffixList = Array LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
+type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
 instance Show DicFileRec where
     show (DicFileRec b m) = "DicFileRec { "++ (map belletter b) ++ show m ++ "}"
 
 data WordNest = WordNest { stem:: [Letter], suffixes :: SuffixSet } 
 instance Show WordNest where 
-  show (WordNest stem suf) = "WordNest{ "++map belletter stem ++ "; "++ showsuffixset suf ++"}"
+  show (WordNest stem suf) = "WordNest{ "++map belletter stem ++ "; "++ showsuffixset suf ++"}\n"
 type SuffixSet = S.Set [Letter]
 showsuffixset s = concat $ intersperse ", " $ map (map belletter) (S.toAscList s) 
 
@@ -41,12 +41,12 @@ mkSuffixMap _ = Nothing
 mkSuffixMaps :: [AffRule]->SuffixMap
 mkSuffixMaps = M.unionsWith (++) . mapMaybe mkSuffixMap   
 
-type SfxList = Array LetterIdx SuffixMap
+type SfxList = M.Map LetterIdx SuffixMap
 mkSfxList :: AffixList->SfxList
-mkSfxList = amap mkSuffixMaps 
+mkSfxList = M.map mkSuffixMaps 
 
 joinAllSuffixMaps::SfxList->[LetterIdx]->SuffixMap
-joinAllSuffixMaps slst idxs = M.unionsWith (++) $ map (slst ! ) idxs 
+joinAllSuffixMaps slst idxs = M.unionsWith (++) $ mapMaybe (`M.lookup` slst ) idxs 
 
 getRules::SuffixMap->LetterWord->[ReplRule]
 getRules m w = case dropWhile isNothing $ map (`M.lookup` m ) $ tails w 
@@ -149,7 +149,7 @@ parseDicFileEntry a s | null strhead = Nothing
 
 ---------
 parseAffFile:: Alphabet->String->AffixList       
-parseAffFile a s = array ('A','z') $ groupLetterIdx $ getLines a s
+parseAffFile a s = M.fromList $ groupLetterIdx $ getLines a s
 
 main = do 
    args <- getArgs
@@ -157,7 +157,7 @@ main = do
    diccontent <- readFile $ head args
    affcontent <- readFile $ head (tail args)
    let sfxlist = mkSfxList $ parseAffFile belarusianAlphabet affcontent
-   print (sfxlist ! 'q')
+   print ('q' `M.lookup` sfxlist )
    --let y = parseDicFile belarusianAlphabet diccontent
    let z = map (mkWordNest sfxlist) $ parseDicFile belarusianAlphabet diccontent 
    print z

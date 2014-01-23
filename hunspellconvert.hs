@@ -49,10 +49,11 @@ joinAllSuffixMaps::SfxList->[LetterIdx]->SuffixMap
 joinAllSuffixMaps slst idxs = M.unionsWith (++) $ mapMaybe (`M.lookup` slst ) idxs 
 
 getRules::SuffixMap->LetterWord->[ReplRule]
-getRules m w = case dropWhile isNothing $ map (`M.lookup` m ) $ tails w 
-                      of [] -> []
-                         Just lst:lsts -> lst
-                         _ -> []
+getRules m w = concat . mapMaybe (`M.lookup` m) $ tails w
+-- case dropWhile isNothing $ map (`M.lookup` m ) $ tails w 
+--                      of [] -> []
+--                         Just lst:lsts -> lst
+--                         _ -> []
 
 applysfxrule::LetterWord->ReplRule->Maybe LetterWord
 applysfxrule w r = do
@@ -88,6 +89,8 @@ updateStemSuffixMap::StemSuffixMap->(LetterWord,Float)->StemSuffixMap
 updateStemSuffixMap mp (wrd,frq) = case filter (uncurry $ matchStemSuffixMap mp) $ zip (inits wrd) (tails wrd) of
                                         [] -> mp
                                         (stem,suf):xs -> M.adjust (\x->Annotation {wordsuffixes = wordsuffixes x, wordfreq = wordfreq x + frq}) stem mp
+showStemSuffixMap:: StemSuffixMap->String
+showStemSuffixMap = unlines . map (\(f,s)->("sufmap: <"++ map belletter f ++","++ show s++">")) . M.toAscList
 
 makefreqs:: StemSuffixMap->[(LetterWord,Float)]->StemSuffixMap
 makefreqs = foldl' updateStemSuffixMap
@@ -157,12 +160,17 @@ main = do
    diccontent <- readFile $ head args
    affcontent <- readFile $ head (tail args)
    let sfxlist = mkSfxList $ parseAffFile belarusianAlphabet affcontent
-   print ('q' `M.lookup` sfxlist )
+   print ('P' `M.lookup` sfxlist )
+   print ('H' `M.lookup` sfxlist )
+   print $ joinAllSuffixMaps sfxlist "HP"
+   print $ letters' "шыла"
+   print $ getRules (joinAllSuffixMaps sfxlist "HP") $ letters' "шыла"
    --let y = parseDicFile belarusianAlphabet diccontent
    let z = map (mkWordNest sfxlist) $ parseDicFile belarusianAlphabet diccontent 
-   print z
+   --print z
+   print $ mkWordNest sfxlist $  DicFileRec (letters' "шыла") "HP"
    print "-------------------------------------------------------------------------"
-   print $ buildStemSuffixMap z
+   putStrLn $ showStemSuffixMap $ buildStemSuffixMap z
    
         
 

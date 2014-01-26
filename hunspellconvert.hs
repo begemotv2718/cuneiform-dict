@@ -170,7 +170,14 @@ main = do
    --print z
    print $ mkWordNest sfxlist $  DicFileRec (letters' "шыла") "HP"
    print "-------------------------------------------------------------------------"
-   putStrLn $ showStemSuffixMap $ buildStemSuffixMap z
+   let q = buildStemSuffixMap z
+   let p = makeSuffixSets q
+   --putStrLn $ showStemSuffixMap  q
+   putStrLn "----------------------------------------------------------------------"
+   putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then concat $ intersperse "," $ map (map belletter) $ S.toAscList $ (p ! wlemma x) else "")) $   makeDictWords q
+
+    
+   
    
         
 

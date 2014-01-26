@@ -154,11 +154,21 @@ parseDicFileEntry a s | null strhead = Nothing
 parseAffFile:: Alphabet->String->AffixList       
 parseAffFile a s = M.fromList $ groupLetterIdx $ getLines a s
 
+--------
+parseFreqFile:: Alphabet->String->[(LetterWord,Float)]
+parseFreqFile a = map (parseFreqLine a) . lines
+parseFreqLine :: Alphabet->String->(LetterWord,Float)
+parseFreqLine a = p1  . words where
+                p1 [] = ([], 0.0)
+                p1 (b:[]) = (fromMaybe [] $ letters a b, 0.0)
+                p1 (b:c:rest) = (fromMaybe [] $ letters a b, fromMaybe 0.0 $ read c)
+
 main = do 
    args <- getArgs
-   unless (length args == 2) $ error "Usage hunspelconvert <dicfile> <afffile>"
+   unless (length args == 2) $ error "Usage hunspelconvert <dicfile> <afffile> <freqfile>"
    diccontent <- readFile $ head args
    affcontent <- readFile $ head (tail args)
+   freqcontent <- readFile $ args !! 3
    let sfxlist = mkSfxList $ parseAffFile belarusianAlphabet affcontent
    print ('P' `M.lookup` sfxlist )
    print ('H' `M.lookup` sfxlist )
@@ -170,8 +180,9 @@ main = do
    --print z
    print $ mkWordNest sfxlist $  DicFileRec (letters' "шыла") "HP"
    print "-------------------------------------------------------------------------"
-   let q = buildStemSuffixMap z
-   let p = makeSuffixSets q
+   let frq = parseFreqFile belarusianAlphabet freqcontent
+   let q = makefreqs (buildStemSuffixMap z) frq
+   let p =  makeSuffixSets q
    --putStrLn $ showStemSuffixMap  q
    putStrLn "----------------------------------------------------------------------"
    putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then concat $ intersperse "," $ map (map belletter) $ S.toAscList $ (p ! wlemma x) else "")) $   makeDictWords q

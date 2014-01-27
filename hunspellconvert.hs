@@ -22,13 +22,13 @@ import System.Environment
 type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
 instance Show DicFileRec where
-    show (DicFileRec b m) = "DicFileRec { "++ (map belletter b) ++ show m ++ "}"
+    show (DicFileRec b m) = "DicFileRec { "++ map belletter b ++ show m ++ "}"
 
 data WordNest = WordNest { stem:: [Letter], suffixes :: SuffixSet } 
 instance Show WordNest where 
   show (WordNest stem suf) = "WordNest{ "++map belletter stem ++ "; "++ showsuffixset suf ++"}\n"
 type SuffixSet = S.Set [Letter]
-showsuffixset s = concat $ intersperse ", " $ map (map belletter) (S.toAscList s) 
+showsuffixset s = intercalate ", " $ map (map belletter) (S.toAscList s) 
 
 --Data STreePlus a b = Node [ EdgePlus a b] | Leaf b
 --Data EdgePlus a b = (Label a, StreePlus a b)
@@ -161,14 +161,14 @@ parseFreqLine :: Alphabet->String->(LetterWord,Float)
 parseFreqLine a = p1  . words where
                 p1 [] = ([], 0.0)
                 p1 (b:[]) = (fromMaybe [] $ letters a b, 0.0)
-                p1 (b:c:rest) = (fromMaybe [] $ letters a b, fromMaybe 0.0 $ read c)
+                p1 (b:c:_) = (fromMaybe [] $ letters a b, read c)
 
 main = do 
    args <- getArgs
-   unless (length args == 2) $ error "Usage hunspelconvert <dicfile> <afffile> <freqfile>"
+   unless (length args == 3) $ error "Usage hunspelconvert <dicfile> <afffile> <freqfile>"
    diccontent <- readFile $ head args
    affcontent <- readFile $ head (tail args)
-   freqcontent <- readFile $ args !! 3
+   freqcontent <- readFile $ args !! 2
    let sfxlist = mkSfxList $ parseAffFile belarusianAlphabet affcontent
    print ('P' `M.lookup` sfxlist )
    print ('H' `M.lookup` sfxlist )
@@ -184,8 +184,8 @@ main = do
    let q = makefreqs (buildStemSuffixMap z) frq
    let p =  makeSuffixSets q
    --putStrLn $ showStemSuffixMap  q
-   putStrLn "----------------------------------------------------------------------"
-   putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then concat $ intersperse "," $ map (map belletter) $ S.toAscList $ (p ! wlemma x) else "")) $   makeDictWords q
+   putStrLn "xxxx----------------------------------------------------------------------"
+   putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then intercalate "," $ map (map belletter) $ S.toAscList  (p ! wlemma x) else "")) $   makeDictWords q
 
     
    

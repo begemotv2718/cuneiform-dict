@@ -18,6 +18,11 @@ import Text.Parsec.Prim
 import ParseAffFile
 import Control.Monad
 import System.Environment
+import SpelTree (serializeDictTree, makeTree) 
+import Endings (findMaxSet,packAllBins, mkVarTableBS, mkEndingPackTable)
+import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as BS
+import Data.Ord
 
 type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
@@ -100,7 +105,7 @@ removeEmptySuf = S.delete []
 hasEmptySuf:: SuffixSet->Bool
 hasEmptySuf  = S.member [] 
 enumerateSuffixSets::StemSuffixMap->[(Int,SuffixSet)]
-enumerateSuffixSets m = zip [0::Int ..] $ map wordsuffixes $ M.elems m 
+enumerateSuffixSets m = zip [0::Int ..] $ uniq $ map wordsuffixes $ M.elems m 
 
 suffixLookupTable::StemSuffixMap->M.Map SuffixSet Int
 suffixLookupTable  = M.fromList. map swap. enumerateSuffixSets
@@ -163,9 +168,13 @@ parseFreqLine a = p1  . words where
                 p1 (b:[]) = (fromMaybe [] $ letters a b, 0.0)
                 p1 (b:c:_) = (fromMaybe [] $ letters a b, read c)
 
+-------
+lookupDictWordbyLemma:: [DictWord]->Int->[DictWord]
+lookupDictWordbyLemma wrds l = filter (\x -> wlemma x == l) wrds
+ 
 main = do 
    args <- getArgs
-   unless (length args == 3) $ error "Usage hunspelconvert <dicfile> <afffile> <freqfile>"
+   unless (length args == 4) $ error "Usage hunspelconvert <dicfile> <afffile> <freqfile> <results.file>"
    diccontent <- readFile $ head args
    affcontent <- readFile $ head (tail args)
    freqcontent <- readFile $ args !! 2
@@ -182,10 +191,25 @@ main = do
    print "-------------------------------------------------------------------------"
    let frq = parseFreqFile belarusianAlphabet freqcontent
    let q = makefreqs (buildStemSuffixMap z) frq
-   let p =  makeSuffixSets q
+   let sts =  makeSuffixSets q
    --putStrLn $ showStemSuffixMap  q
-   putStrLn "xxxx----------------------------------------------------------------------"
-   putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then intercalate "," $ map (map belletter) $ S.toAscList  (p ! wlemma x) else "")) $   makeDictWords q
+   --putStrLn "xxxx----------------------------------------------------------------------"
+   --putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then intercalate "," $ map (map belletter) $ S.toAscList  (p ! wlemma x) else "")) $   makeDictWords q
+   let w = makeDictWords q
+   let dicttree = serializeDictTree 33 $ makeTree w
+   B.writeFile (args !! 3) dicttree
+   putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
+   let maxinds = sortBy (comparing (S.size . (sts !)) )  $ indices sts
+   print $ map (S.size . (sts !)) maxinds
+   putStrLn $ show (S.size $ sts ! (maxinds !! 0))
+   let words = lookupDictWordbyLemma w (maxinds !! 0)
+   putStrLn $ show words
+   putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! 0))
+   --let packed = packAllBins sts  
+   --let vartable = mkVarTableBS sts packed
+   --let (endaddrtable, pkdendings) = mkEndingPackTable sts packed  
+   --(putStrLn $ show (B.length dicttree) ++ " " ++ show (BS.length pkdendings) ++ " " ++ show (BS.length vartable) ++ " " ++ show (BS.length endaddrtable)) >>B.writeFile (args !! 4) ( dicttree `B.append` B.fromStrict (pkdendings)  `B.append` B.fromStrict (vartable) `B.append` B.fromStrict (endaddrtable) )
+   
 
     
    

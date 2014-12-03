@@ -14,6 +14,7 @@ import qualified Data.Foldable as DF
 import Data.Bits
 import System.Environment
 import CommonType
+import TreeUtil
 
 --mapfromrus = Map.fromList $ zip [0::Int .. 31::Int] ['а'..'я'] 
 type DictNode = Tree DictData
@@ -76,22 +77,6 @@ extractPrepend alphsize (Just vert) = setIfTerminal vert:(unfoldForest2List alph
                                    clearSubnodes a = Node { rootLabel = rootLabel a, subForest = []}
 extractPrepend alphsize Nothing = replicate (alphsize+1) Nothing
 -- Tree to binary conversion
-
-mapAccumTree::(a->[b]->(b,c))->Tree a -> (b, Tree c)
-mapAccumTree f (Node a []) = (b', Node c' [])
-           where (b',c') = f a []
-mapAccumTree f (Node a sf) = (b', Node c' cs)
-           where (b',c') = f a bs
-                 (bs,cs) = unzip $ map (mapAccumTree f) sf
-
-mapAccumTree2::(a->[b]->b)->Tree a->Tree b
-mapAccumTree2 f = snd . mapAccumTree (dupl . f) where dupl f x = (f x,f x)
-
-fmapForest::([a]->[b])->Forest a->Forest b
-fmapForest f [] = []
-fmapForest f forest = zipWith Node (f rootlabels) (map (fmapForest f) subforests)
-           where rootlabels = map rootLabel forest
-                 subforests = map subForest forest
 
 setBit2 = flip setBit
 setBit2If::Bool->Int->Word8->Word8

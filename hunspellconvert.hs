@@ -23,6 +23,7 @@ import Endings (findMaxSet,packAllBins, mkVarTableBS, mkEndingPackTable)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
 import Data.Ord
+import CommonPrefix
 
 type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
@@ -130,16 +131,23 @@ allcombinations ([]:xss) = allcombinations xss
 allcombinations (lst:[]) = map (:[]) lst
 allcombinations (lstx:lstxs) = concatMap (\x->map (x:) $ allcombinations lstxs) lstx
 
-commonPrefix :: Eq a=>[[a]]->([a],[[a]])
-commonPrefix [] = ([],[])
-commonPrefix lst  | any null lst  = ([],lst)
-                  | not $ all (== head ( head lst)) $ map head lst = ([],lst)
-                  | otherwise = ( head  ( head lst):prefix, suffixes) 
-                                 where (prefix, suffixes) = commonPrefix $ map tail lst
-
 uniq:: Ord a => [a]->[a]
 uniq = S.toList . S.fromList
 
+------------------
+
+-- splitSuffixNest: we need to separate large suffix nests as they are spurious
+-- algorithm: 
+-- totallen = length suffixnest
+-- splitlist x:xs = ([x],xs)
+-- splitlist [] = ([],[])
+-- tmp1 = groupBy (fst a == fst b) $ map splitlist suffixnest
+-- map \(a,b)->(length b, (a, b)) tmp1
+-- mapaccumulate (sum fst, )
+-- splitAt totallen-sum fst < 32
+-- check if remaining has nest >10
+-- apply commonprefix
+-- result: [([abc],[[de],[ef],[]),([r],[[xyz],[x],[]]),...,([],[[ab],..,[]])]
 
 ------------------
 
@@ -195,16 +203,16 @@ main = do
    --putStrLn $ showStemSuffixMap  q
    --putStrLn "xxxx----------------------------------------------------------------------"
    --putStrLn $ unlines $ map (\x->show x ++ (if wlemma x >0 then intercalate "," $ map (map belletter) $ S.toAscList  (p ! wlemma x) else "")) $   makeDictWords q
+   --
+   --
    let w = makeDictWords q
-   let dicttree = serializeDictTree 33 $ makeTree w
-   B.writeFile (args !! 3) dicttree
-   putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
-   let maxinds = sortBy (comparing (S.size . (sts !)) )  $ indices sts
+   --let dicttree = serializeDictTree 33 $ makeTree w
+   --B.writeFile (args !! 3) dicttree
+   --putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
+   --
+   let maxinds = reverse. sortBy (comparing (S.size . (sts !)) )  $ indices sts
    print $ map (S.size . (sts !)) maxinds
-   putStrLn $ show (S.size $ sts ! (maxinds !! 0))
-   let words = lookupDictWordbyLemma w (maxinds !! 0)
-   putStrLn $ show words
-   putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! 0))
+   forM [0..40] (\i->do {putStrLn $ show (S.size $ sts ! (maxinds !! i)); putStrLn $ show $ lookupDictWordbyLemma w (maxinds !! i);  putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! i)) }) 
    --let packed = packAllBins sts  
    --let vartable = mkVarTableBS sts packed
    --let (endaddrtable, pkdendings) = mkEndingPackTable sts packed  

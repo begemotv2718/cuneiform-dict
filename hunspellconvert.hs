@@ -4,7 +4,7 @@
 --We will need to convert [(Stem,freq,[Suffix])] into [(Stem,freq,SuffixIndex)]+Array SuffixIndex SuffixSet
 import Data.Array.IArray
 import Data.List
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Maybe
 import Data.Monoid
@@ -24,6 +24,7 @@ import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
 import Data.Ord
 import CommonPrefix
+import Data.Function
 
 type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
@@ -86,6 +87,23 @@ instance Monoid Annotation where
 type StemSuffixMap = M.Map LetterWord Annotation
 buildStemSuffixMap:: [WordNest]->StemSuffixMap
 buildStemSuffixMap wds = M.unionsWith mappend $ map (\x->M.singleton (stem x) (Annotation (suffixes x) 0.0)) wds 
+
+-- make sure that no suffix list is larger than a threshold
+refineStemSuffixMap:: Int->StemSuffixMap->StemSuffixMap
+refineStemSuffixMap thresh m = (!! 3) $ iterate (refineIteration thresh) m 
+   where
+   refineIteration::Int->StemSuffixMap->StemSuffixMap
+   refineIteration thresh = M.unionsWith mappend . map (\x->M.singleton (fst x) (snd x))  . concatMap (splitSuffixes thresh) . M.toList --M.fromList is insuficient here
+   splitSuffixes::Int->(LetterWord, Annotation)->[(LetterWord, Annotation)]
+   splitSuffixes thresh (w,a) = map (mapFst (w++)) $ splitAnnotation thresh a
+   splitAnnotation:: Int->Annotation -> [(LetterWord, Annotation)]
+   splitAnnotation thresh a =  map (mapSnd (recreateAnnotation . S.fromList ) ) $ frequentPrefixes thresh $ S.toAscList $ wordsuffixes a
+   recreateAnnotation:: SuffixSet -> Annotation
+   recreateAnnotation s = Annotation s 0.0
+   
+
+   
+   
 
 matchStemSuffixMap::StemSuffixMap->LetterWord->LetterWord->Bool
 matchStemSuffixMap m stem suf = case M.lookup stem m  of

@@ -216,7 +216,7 @@ main = do
    print $ mkWordNest sfxlist $  DicFileRec (letters' "шыла") "HP"
    print "-------------------------------------------------------------------------"
    let frq = parseFreqFile belarusianAlphabet freqcontent
-   let q = makefreqs (buildStemSuffixMap z) frq
+   let q = makefreqs (refineStemSuffixMap 30 $ buildStemSuffixMap z) frq
    let sts =  makeSuffixSets q
    --putStrLn $ showStemSuffixMap  q
    --putStrLn "xxxx----------------------------------------------------------------------"
@@ -224,17 +224,18 @@ main = do
    --
    --
    let w = makeDictWords q
-   --let dicttree = serializeDictTree 33 $ makeTree w
-   --B.writeFile (args !! 3) dicttree
-   --putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
+   let dicttree = serializeDictTree 33 $ makeTree w
+   B.writeFile (args !! 3) dicttree
+   putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
    --
-   let maxinds = reverse. sortBy (comparing (S.size . (sts !)) )  $ indices sts
+   --let maxinds = reverse. sortBy (comparing (S.size . (sts !)) )  $ indices sts
+   let maxinds =  sortBy (comparing (S.size . (sts !)) )  $ indices sts
    print $ map (S.size . (sts !)) maxinds
    forM [0..40] (\i->do {putStrLn $ show (S.size $ sts ! (maxinds !! i)); putStrLn $ show $ lookupDictWordbyLemma w (maxinds !! i);  putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! i)) }) 
-   --let packed = packAllBins sts  
-   --let vartable = mkVarTableBS sts packed
-   --let (endaddrtable, pkdendings) = mkEndingPackTable sts packed  
-   --(putStrLn $ show (B.length dicttree) ++ " " ++ show (BS.length pkdendings) ++ " " ++ show (BS.length vartable) ++ " " ++ show (BS.length endaddrtable)) >>B.writeFile (args !! 4) ( dicttree `B.append` B.fromStrict (pkdendings)  `B.append` B.fromStrict (vartable) `B.append` B.fromStrict (endaddrtable) )
+   let packed = packAllBins sts  
+   let vartable = mkVarTableBS sts packed
+   let (endaddrtable, pkdendings) = mkEndingPackTable sts packed  
+   (putStrLn $ show (B.length dicttree) ++ " " ++ show (BS.length pkdendings) ++ " " ++ show (BS.length vartable) ++ " " ++ show (BS.length endaddrtable)) >>B.writeFile (args !! 4) ( dicttree `B.append` B.fromStrict (pkdendings)  `B.append` B.fromStrict (vartable) `B.append` B.fromStrict (endaddrtable) )
    
 
     

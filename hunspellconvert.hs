@@ -25,6 +25,7 @@ import qualified Data.ByteString as BS
 import Data.Ord
 import CommonPrefix
 import Data.Function
+import WriteHeader (writeheader)
 
 type AffixList = M.Map LetterIdx [AffRule] -- mapping between letter index and affix rule. This is a result of parsing aff file
 data DicFileRec = DicFileRec { baseform:: LetterWord, modifiers:: [LetterIdx] } -- record in a dic file.
@@ -225,17 +226,19 @@ main = do
    --
    let w = makeDictWords q
    let dicttree = serializeDictTree 33 $ makeTree w
-   B.writeFile (args !! 3) dicttree
+   --B.writeFile (args !! 3) dicttree
    putStrLn $ show (B.length dicttree) ++ " " ++ show (bounds sts)
    --
    --let maxinds = reverse. sortBy (comparing (S.size . (sts !)) )  $ indices sts
    let maxinds =  sortBy (comparing (S.size . (sts !)) )  $ indices sts
    print $ map (S.size . (sts !)) maxinds
-   forM [0..40] (\i->do {putStrLn $ show (S.size $ sts ! (maxinds !! i)); putStrLn $ show $ lookupDictWordbyLemma w (maxinds !! i);  putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! i)) }) 
+   --forM [0..40] (\i->do {putStrLn $ show (S.size $ sts ! (maxinds !! i)); putStrLn $ show $ lookupDictWordbyLemma w (maxinds !! i);  putStrLn $  concat $ intersperse " " $ map (map belletter) $ S.toList (sts ! (maxinds !! i)) }) 
    let packed = packAllBins sts  
    let vartable = mkVarTableBS sts packed
    let (endaddrtable, pkdendings) = mkEndingPackTable sts packed  
-   (putStrLn $ show (B.length dicttree) ++ " " ++ show (BS.length pkdendings) ++ " " ++ show (BS.length vartable) ++ " " ++ show (BS.length endaddrtable)) >>B.writeFile (args !! 4) ( dicttree `B.append` B.fromStrict (pkdendings)  `B.append` B.fromStrict (vartable) `B.append` B.fromStrict (endaddrtable) )
+   let header = writeheader (fromIntegral $ B.length dicttree) (fromIntegral $ BS.length pkdendings) (fromIntegral $ BS.length vartable) (fromIntegral $ BS.length endaddrtable)
+   (putStrLn $ show (B.length dicttree) ++ " " ++ show (BS.length pkdendings) ++ " " ++ show (BS.length vartable) ++ " " ++ show (BS.length endaddrtable)) >>B.writeFile (args !! 3) ( header `B.append` dicttree `B.append` B.fromStrict (pkdendings)  `B.append` B.fromStrict (vartable) `B.append` B.fromStrict (endaddrtable) )
+
    
 
     

@@ -87,7 +87,9 @@ mkVarTable sts packed = map mksinglevartable $ assocs sts
       revassoc = array (bounds sts)  $ reverseAssoc $ numberList 0 packed 
       tblsts = listArray0 0 $ map (mkSetSfromInd sts) packed
       maxlen::SetS->Int
-      maxlen set = Set.findMax $ Set.map length set 
+      maxlen set 
+                |Set.null set = 0
+                |otherwise = Set.findMax $ Set.map length set 
 
 mkVarTableBS::AllSetS->[[Int]]->ByteString
 mkVarTableBS sts packed = B.concat $ map (encodeVarTable Little) $ mkVarTable sts packed 
